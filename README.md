@@ -3,7 +3,7 @@
 | Archivo | Qué es |
 |---|---|
 | `CUADRO_CANTIDADES_UNIQUE76_RCI.xlsx` | Cuadro de cantidades limpio. Hojas: **DASHBOARD**, **NIVEL**, **BD_REVIT**, **CRUCE RCI** (+ LISTAS oculta). |
-| `dashboard/index.html` | Tablero interactivo (tipo Power BI) con los mismos datos. |
+| `dashboard/index.html` | Tablero interactivo (tipo Power BI). “Exportar Excel” descarga este mismo libro completo (plantilla `dashboard/plantilla.xlsx`) con las asignaciones y filtros del tablero. |
 | `revit/…_ORIGINAL.xlsx` | Exportación cruzada original (entrada). |
 | `scripts/build_cuadro.py` | Regenera el Excel a partir de una nueva exportación Revit. |
 | `scripts/build_dashboard.py` | Regenera `dashboard/index.html` desde `dashboard/data.json`. |
@@ -12,7 +12,7 @@
 - **NIVEL**: mismo cuadro y numeración. Las cantidades del cap. 7 son `SUMIFS` sobre BD_REVIT (cantidad global). Columna FUENTE indica Revit/Manual.
 - **BD_REVIT**: una sola tabla con los 461 elementos (antes 6 hojas). Solo se edita la columna amarilla **Código NIVEL**; Ítem, Und. y Estado se calculan. Incluye “Código sugerido” para los 139 elementos sin asignar.
 - **CRUCE RCI**: matriz ítem × nivel de piso con control `Dif.` contra NIVEL (todo en 0).
-- **DASHBOARD**: KPIs, selector de ítem (celda amarilla) con tabla y gráfico por nivel, resumen por categoría.
+- **DASHBOARD**: filtros (nivel, categoría, ítem) en celdas amarillas; indicadores, cantidad del ítem por nivel, top 10 de ítems, asignación por categoría y elementos por nivel × categoría, cada uno con su gráfico.
 
 ## Actualizar con un nuevo export de Revit
 ```bash
@@ -33,5 +33,6 @@ Regenerar todo:
 ```bash
 python scripts/build_cuadro.py revit/<export>.xlsx CUADRO_CANTIDADES_UNIQUE76_RCI.xlsx
 # recalcular en Excel/LibreOffice y luego:
+python scripts/build_cuadro.py revit/<export>.xlsx dashboard/plantilla.xlsx   # plantilla sin calcular para el tablero
 python scripts/export_dashboard_data.py && python scripts/build_dashboard.py
 ```

@@ -2,6 +2,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
 /* Layout: barra de proyecto + fila de segmentadores + KPIs + lienzo de 2 columnas (gráficos) + tablas con pestañas, al estilo de un informe BI */
 :root{
@@ -198,11 +199,12 @@ td select.code.changed{border-color:var(--sel);box-shadow:0 0 0 1px var(--sel)}
     <div class="ptools" id="ptools"></div>
     <div class="scroll" id="tbl"></div>
   </div>
-  <p class="foot">Las cantidades globales se recalculan con los filtros activos. Las asignaciones de código se guardan en este navegador; usa “Exportar Excel” para llevarlas al cuadro oficial.</p>
+  <p class="foot">Las cantidades globales se recalculan con los filtros activos. Las asignaciones de código se guardan en este navegador. “Exportar Excel” descarga el cuadro completo (dashboard, NIVEL, BD_REVIT y cruce) con tus cambios y filtros.</p>
 </div>
 <div id="tip" hidden></div>
 
 <script id="seed" type="application/json">__DATA__</script>
+<script id="tpl" type="text/plain">__TPL__</script>
 <script>
 (()=>{
 const SEED=JSON.parse(document.getElementById('seed').textContent);
@@ -213,7 +215,7 @@ const CCOL={Accesorios:"var(--s1)",Equipos:"var(--s2)",Rociadores:"var(--s3)",So
 const LS="rci-u76-v1";
 const store={get(){try{return JSON.parse(localStorage.getItem(LS))||{}}catch(e){return{}}},set(v){try{localStorage.setItem(LS,JSON.stringify(v))}catch(e){}}};
 
-const catalogo=SEED.catalogo.map(([code,desc,und,grp])=>({code,desc,und,grp}));
+const catalogo=SEED.catalogo.map(([code,desc,und,grp,row])=>({code,desc,und,grp,row}));
 const byCode=Object.fromEntries(catalogo.map(c=>[c.code,c]));
 let dataset={name:"Exportación Revit incluida (461 elementos)",rows:[]};
 function load(rows,name){
@@ -429,7 +431,7 @@ $("file").onchange=async e=>{
       if(hi<0)continue;
       const H=a[hi].map(h=>String(h||"").trim());
       const ix={cod:find(H,/^C[óo]digo (de )?NIVEL$/i),cat:find(H,/^Categor/i),niv:find(H,/^Nivel de piso$/i),cant:find(H,/^Cantidad( de origen)?$/i),
-        fam:find(H,/^Familia|^Tipo de origen/i),desc:find(H,/^Descripci[óo]n (de origen|Revit)/i),com:find(H,/^Comentarios$/i),sug:find(H,/sugerido/i),
+        fam:find(H,/^Familia|^Tipo de origen/i),desc:find(H,/^Descripci[óo]n (de origen|Revit)/i),com:find(H,/^Comentarios$/i),sug:find(H,/sugerido|^Origen/i),
         tam:[find(H,/^Tamaño$/i),find(H,/^Tamaño nominal$/i),find(H,/^Diámetro nominal$/i),find(H,/^Tamaño \/ di/i)].filter(x=>x>=0)};
       if(ix.niv<0||ix.cant<0)continue;
       const cat=ix.cat>=0?null:name.replace(/^RCI\s*-\s*/i,"").trim();
@@ -449,31 +451,88 @@ $("file").onchange=async e=>{
   }catch(err){console.error(err);toast("No se pudo leer el archivo: "+err.message)}
 };
 
-/* ---------- exportar ---------- */
-$("bExport").onclick=async()=>{
-  if(!window.XLSX){toast("No se pudo cargar el generador de Excel. Recarga la página.");return}
+/* ---------- exportar: el mismo libro completo (plantilla) con los datos del tablero ---------- */
+const xesc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g,"");
+const cellRe=ref=>new RegExp(`<c r="${ref}"(?:[^>]*/>|[^>]*>[\\s\\S]*?</c>)`);
+const strCell=(ref,s,v)=>`<c r="${ref}" s="${s}" t="inlineStr"><is><t xml:space="preserve">${xesc(v)}</t></is></c>`;
+const numCell=(ref,s,v)=>`<c r="${ref}" s="${s}"><v>${+v||0}</v></c>`;
+const fCell=(ref,s,f,v,isStr)=>`<c r="${ref}" s="${s}"${isStr?' t="str"':""}><f>${xesc(f)}</f><v>${isStr?xesc(v):(+v||0)}</v></c>`;
+async function sheetPaths(zip){
+  const wbx=await zip.file("xl/workbook.xml").async("string");
+  const rels=await zip.file("xl/_rels/workbook.xml.rels").async("string");
+  const out={};
+  for(const m of wbx.matchAll(/<sheet [^>]*name="([^"]+)"[^>]*r:id="([^"]+)"/g)){
+    const t=rels.match(new RegExp(`Target="([^"]+)"[^>]*Id="${m[2]}"|Id="${m[2]}"[^>]*Target="([^"]+)"`));
+    out[m[1]]=(t[1]||t[2]).replace(/^\//,"").replace(/^(?!xl\/)/,"xl/");
+  }
+  return out;
+}
+async function buildWorkbook(){
+  const zip=await JSZip.loadAsync(document.getElementById("tpl").textContent.trim(),{base64:true});
+  const P=await sheetPaths(zip);
+  const niv=st.nivel||"Todos", cat=st.cats.size===1?[...st.cats][0]:"Todas";
   const t=totals(dataset.rows);
-  const nivel=[["ÍTEM","DESCRIPCIÓN","UND.","CANT. GLOBAL","FUENTE","ELEMENTOS REVIT"]];
-  let g="";
-  for(const c of catalogo){if(c.grp!==g){g=c.grp;nivel.push(["-",g])}
+  /* BD_REVIT: se regeneran todas las filas de datos con los estilos de la fila 6 */
+  let bx=await zip.file(P.BD_REVIT).async("string");
+  const r6=bx.match(/<row r="6"[\s\S]*?<\/row>/)[0];
+  const S={};for(const m of r6.matchAll(/<c r="([A-Z]+)6" s="(\d+)"/g))S[m[1]]=m[2];
+  const nivOrden=n=>{const i=NIVELES.indexOf(n);return i<0?99:i+1};
+  const rowsXml=dataset.rows.map((r,i)=>{
+    const R=6+i, c=code(r), it=byCode[c];
+    const nv=r.nivel==="(sin nivel)"?"":r.nivel;
+    const enFiltro=(niv==="Todos"||nv===niv)&&(cat==="Todas"||r.cat===cat)?1:0;
+    const origen=st.ovr[r.sig]!==undefined?"Editado en tablero":r.sug;
+    return `<row r="${R}">`+[
+      numCell("A"+R,S.A,i+1), strCell("B"+R,S.B,r.cat), strCell("C"+R,S.C,c),
+      fCell("D"+R,S.D,`IF(C${R}="","",IFERROR(INDEX(NIVEL!$B:$B,MATCH(C${R},NIVEL!$A:$A,0)),"¡Código no existe!"))`,c?(it?it.desc:"¡Código no existe!"):"",true),
+      fCell("E"+R,S.E,`IF(C${R}="","",IFERROR(INDEX(NIVEL!$C:$C,MATCH(C${R},NIVEL!$A:$A,0)),""))`,it?it.und:"",true),
+      strCell("F"+R,S.F,nv),
+      fCell("G"+R,S.G,`IFERROR(MATCH(F${R},LISTAS!$D$2:$D$${NIVELES.length+1},0),99)`,nivOrden(nv)),
+      numCell("H"+R,S.H,r.cant), strCell("I"+R,S.I,r.fam), strCell("J"+R,S.J,r.desc), strCell("K"+R,S.K,r.tam), strCell("L"+R,S.L,r.com),
+      fCell("M"+R,S.M,`IF(C${R}="","SIN ASIGNAR","ASIGNADO")`,c?"ASIGNADO":"SIN ASIGNAR",true),
+      strCell("N"+R,S.N,origen),
+      fCell("O"+R,S.O,`IF(AND(OR(DASHBOARD!$C$6="Todos",F${R}=DASHBOARD!$C$6),OR(DASHBOARD!$C$7="Todas",B${R}=DASHBOARD!$C$7)),1,0)`,enFiltro)
+    ].join("")+`</row>`;
+  }).join("");
+  const last=5+dataset.rows.length;
+  bx=bx.replace(/(<sheetData>[\s\S]*?<\/row>)(?=<row r="6")[\s\S]*?<\/sheetData>/,(m,head)=>head.replace(/(<row r="5"[\s\S]*?<\/row>)[\s\S]*$/,"$1")+rowsXml+"</sheetData>");
+  bx=bx.replace(/<dimension ref="[^"]*"\/>/,`<dimension ref="A1:O${last}"/>`);
+  zip.file(P.BD_REVIT,bx);
+  for(const f of Object.keys(zip.files).filter(f=>/^xl\/tables\/table\d+\.xml$/.test(f))){
+    let tx=await zip.file(f).async("string");
+    if(tx.includes('name="TablaRevit"')){tx=tx.replace(/ref="A5:O\d+"/g,`ref="A5:O${last}"`);zip.file(f,tx)}
+  }
+  /* NIVEL: valores ya calculados para que se vea bien incluso sin recalcular */
+  let nx=await zip.file(P.NIVEL).async("string");
+  for(const c of catalogo){
     const n=dataset.rows.filter(r=>code(r)===c.code).length;
-    nivel.push([c.code,c.desc,c.und,t[c.code]?Math.round(t[c.code]*100)/100:null,n?"Revit":"Manual",n||null])}
-  const bd=[["Categoría","Código NIVEL","Ítem NIVEL","Und.","Nivel de piso","Cantidad","Familia / tipo Revit","Descripción Revit","Tamaño / diámetro","Comentarios","Estado","Editado en dashboard","Origen asignación"]];
-  for(const r of dataset.rows){const c=code(r);bd.push([r.cat,c,byCode[c]?.desc||"",byCode[c]?.und||"",r.nivel,r.cant,r.fam,r.desc,r.tam,r.com,c?"ASIGNADO":"SIN ASIGNAR",st.ovr[r.sig]!==undefined?"Sí":"",r.sug])}
-  const mx=[["Código","Descripción","Und.",...NIVELES.map(short),"TOTAL"]];
-  for(const c of catalogo){if(!t[c.code])continue;
-    mx.push([c.code,c.desc,c.und,...NIVELES.map(n=>{const v=dataset.rows.filter(r=>r.nivel===n&&code(r)===c.code).reduce((a,r)=>a+r.cant,0);return v?Math.round(v*100)/100:null}),Math.round(t[c.code]*100)/100])}
-  const wb=XLSX.utils.book_new();
-  const add=(a,n,w)=>{const s=XLSX.utils.aoa_to_sheet(a);s["!cols"]=w.map(x=>({wch:x}));XLSX.utils.book_append_sheet(wb,s,n)};
-  add(nivel,"NIVEL cap7",[8,70,7,14,9,10]);add(bd,"BD_REVIT",[12,11,40,6,24,10,48,30,18,30,12,10,30]);add(mx,"CRUCE RCI",[8,44,6,...NIVELES.map(()=>9),11]);
-  const buf=XLSX.write(wb,{type:"array",bookType:"xlsx"});
-  const name="Cantidades_RCI_Unique76_"+new Date().toISOString().slice(0,10)+".xlsx";
+    nx=nx.replace(cellRe("D"+c.row),m=>m.replace(/<v>[^<]*<\/v>|<v\/>/,`<v>${Math.round((t[c.code]||0)*100)/100}</v>`));
+    nx=nx.replace(cellRe("E"+c.row),m=>m.replace(/<c ([^>]*?)(?: t="[^"]*")?>/,'<c $1 t="str">').replace(/<v>[^<]*<\/v>|<v\/>/,`<v>${n?"Revit":"Manual"}</v>`));
+  }
+  zip.file(P.NIVEL,nx);
+  /* DASHBOARD: abre con los mismos filtros que tenías en el tablero */
+  let dx=await zip.file(P.DASHBOARD).async("string");
+  const keepS=ref=>(dx.match(cellRe(ref))||[""])[0].match(/ s="(\d+)"/)?.[1]||"0";
+  for(const [ref,v] of [["C6",niv],["C7",cat],["C8",st.item||"7.08"]])dx=dx.replace(cellRe(ref),strCell(ref,keepS(ref),v));
+  zip.file(P.DASHBOARD,dx);
+  /* Excel recalcula todo al abrir */
+  let wx=await zip.file("xl/workbook.xml").async("string");
+  if(!/fullCalcOnLoad/.test(wx))wx=wx.replace(/<calcPr([^>]*)\/>/,'<calcPr$1 fullCalcOnLoad="1"/>');
+  zip.file("xl/workbook.xml",wx);
+  return zip.generateAsync({type:"blob",compression:"DEFLATE"});
+}
+$("bExport").onclick=async()=>{
+  if(!window.JSZip||!document.getElementById("tpl")){toast("No se pudo cargar el generador de Excel. Recarga la página.");return}
+  const b=$("bExport");b.disabled=true;
   try{
+    const blob=await buildWorkbook();
+    const name="CUADRO_CANTIDADES_UNIQUE76_RCI_"+new Date().toISOString().slice(0,10)+".xlsx";
     const dl=await window.claude?.use?.("downloads");
     if(!dl){toast("Este visor no permite descargar archivos.");return}
-    await dl.save({filename:name,data:new Blob([buf])});
+    await dl.save({filename:name,data:blob});
     toast("Excel guardado: "+name);
-  }catch(err){toast(err?.code==="declined"?"Descarga cancelada.":"No se pudo guardar el archivo ("+(err?.code||err?.message||"error")+").")}
+  }catch(err){console.error(err);toast(err?.code==="declined"?"Descarga cancelada.":"No se pudo generar el Excel ("+(err?.code||err?.message||"error")+").")}
+  finally{b.disabled=false}
 };
 
 render();

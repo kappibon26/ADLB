@@ -14,7 +14,7 @@ for r in range(7, nv.max_row + 1):
     if not cap:
         continue
     if a and str(a).startswith("7."):
-        cat.append([str(a), b.strip(), c or "Un.", grp])
+        cat.append([str(a), b.strip(), c or "Un.", grp, r])
     elif b:
         grp = b.strip()
 rows = [[r[1], r[2] or "", r[5], round(float(r[7]), 2), r[8] or "", r[9] or "", r[10] or "", r[11] or "", r[13] or ""]

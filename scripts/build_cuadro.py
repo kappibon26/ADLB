@@ -11,7 +11,7 @@ Uso: python scripts/build_cuadro.py <entrada.xlsx> <salida.xlsx>
 import sys
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-from openpyxl.formatting.rule import ColorScaleRule, CellIsRule, FormulaRule
+from openpyxl.formatting.rule import ColorScaleRule, CellIsRule, FormulaRule, DataBarRule
 from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.worksheet.table import Table, TableStyleInfo
 from openpyxl.chart import BarChart, Reference
@@ -213,30 +213,45 @@ nv.freeze_panes = "A7"
 nv.sheet_view.showGridLines = False
 nv.auto_filter.ref = None
 
+# Las fórmulas cubren hasta MAXR filas de BD_REVIT para que el libro acepte exportaciones más grandes.
+MAXR = 5000
+CATS = ["Accesorios", "Equipos", "Rociadores", "Soportes", "Tuberías", "Uniones"]
+SERIES = ["2A78D6", "EB6834", "1BAF7A", "EDA100", "E87BA4", "4A3AA7"]
+CNIV = NIVELES + ["="]  # "=" en SUMIFS/COUNTIFS = elementos sin nivel de piso
+corto = lambda n: n.replace("Nivel ", "").replace("Cuarto de Bomba Sub", "C. Bomba").replace("=", "Sin nivel")
+BD = lambda col: f"BD_REVIT!${col}$6:${col}${MAXR}"
+
+for dn in [n for n, d in wb.defined_names.items() if "#REF!" in str(d.attr_text)]:
+    del wb.defined_names[dn]
+
 # ---------------------------------------------------------------- LISTAS
 ls = wb.create_sheet("LISTAS")
-ls["A1"], ls["B1"], ls["C1"], ls["D1"] = "Código", "Descripción", "Und.", "Nivel de piso"
+for col, lab in enumerate(["Código", "Descripción", "Und.", "Nivel de piso", "", "Filtro nivel", "Filtro categoría"], 1):
+    ls.cell(1, col, lab).font = F_BOLD
 for i, (cod, desc, und, _) in enumerate(cap7, 2):
     ls.cell(i, 1, cod), ls.cell(i, 2, desc), ls.cell(i, 3, und)
 for i, n in enumerate(NIVELES, 2):
     ls.cell(i, 4, n)
-for c in ls[1]:
-    c.font = F_BOLD
+for i, n in enumerate(["Todos"] + NIVELES, 2):
+    ls.cell(i, 6, n)
+for i, n in enumerate(["Todas"] + CATS, 2):
+    ls.cell(i, 7, n)
 ls.sheet_state = "hidden"
 N_COD = len(cap7) + 1
 
 # ---------------------------------------------------------------- BD_REVIT
 bd = wb.create_sheet("BD_REVIT")
 title(bd, "BASE DE DATOS REVIT – RCI",
-      "Edite solo la columna amarilla 'Código NIVEL' para asignar elementos. Ítem, Und. y Estado se calculan.", 14)
+      "Edite solo la columna amarilla 'Código NIVEL' para asignar elementos. Las demás columnas grises se calculan.", 15)
 H = ["ID", "Categoría", "Código NIVEL", "Ítem NIVEL", "Und.", "Nivel de piso", "Orden nivel",
      "Cantidad", "Familia / tipo Revit", "Descripción Revit", "Tamaño / diámetro", "Comentarios",
-     "Estado", "Origen asignación"]
-header(bd, 5, H, [6, 12, 11, 42, 7, 24, 7, 10, 48, 30, 18, 30, 12, 30])
+     "Estado", "Origen asignación", "En filtro"]
+header(bd, 5, H, [6, 12, 11, 42, 7, 24, 7, 10, 48, 30, 18, 30, 13, 22, 8])
+F_CALC = Font(name=ARIAL, size=10, color="404040")
 for i, d in enumerate(rows):
     r = 6 + i
     vals = [i + 1, d["cat"], d["cod"], None, None, d["nivel"], None, d["cant"], d["fam"], d["desc"],
-            d["tam"], d["com"], None, d["sug"]]
+            d["tam"], d["com"], None, d["sug"], None]
     for col, v in enumerate(vals, 1):
         c = bd.cell(r, col, v)
         c.font, c.border = F_BASE, BORDER
@@ -247,6 +262,11 @@ for i, d in enumerate(rows):
     bd.cell(r, 7).value = f'=IFERROR(MATCH(F{r},LISTAS!$D$2:$D${len(NIVELES)+1},0),99)'
     bd.cell(r, 8).number_format = NUM
     bd.cell(r, 13).value = f'=IF(C{r}="","SIN ASIGNAR","ASIGNADO")'
+    bd.cell(r, 15).value = (f'=IF(AND(OR(DASHBOARD!$C$6="Todos",F{r}=DASHBOARD!$C$6),'
+                            f'OR(DASHBOARD!$C$7="Todas",B{r}=DASHBOARD!$C$7)),1,0)')
+    for col in (4, 5, 7, 13, 15):
+        bd.cell(r, col).font = F_CALC
+    bd.cell(r, 15).alignment = Alignment(horizontal="center")
 BD_LAST = 5 + len(rows)
 tab = Table(displayName="TablaRevit", ref=f"A5:{L(len(H))}{BD_LAST}")
 tab.tableStyleInfo = TableStyleInfo(name="TableStyleLight1", showRowStripes=True)
@@ -254,10 +274,10 @@ bd.add_table(tab)
 dv = DataValidation(type="list", formula1=f"=LISTAS!$A$2:$A${N_COD}", allow_blank=True,
                     showErrorMessage=True, errorTitle="Código", error="Use un código del capítulo 7 de NIVEL")
 bd.add_data_validation(dv)
-dv.add(f"C6:C{BD_LAST + 300}")
-bd.conditional_formatting.add(f"M6:M{BD_LAST}", CellIsRule(operator="equal", formula=['"SIN ASIGNAR"'],
+dv.add(f"C6:C{MAXR}")
+bd.conditional_formatting.add(f"M6:M{MAXR}", CellIsRule(operator="equal", formula=['"SIN ASIGNAR"'],
                               font=Font(color="C00000", bold=True), fill=PatternFill("solid", fgColor="FCE4E4")))
-bd.conditional_formatting.add(f"M6:M{BD_LAST}", CellIsRule(operator="equal", formula=['"ASIGNADO"'],
+bd.conditional_formatting.add(f"M6:M{MAXR}", CellIsRule(operator="equal", formula=['"ASIGNADO"'],
                               font=Font(color="2E7D32")))
 bd.freeze_panes = "D6"
 bd.sheet_view.showGridLines = False
@@ -266,9 +286,7 @@ bd.sheet_view.showGridLines = False
 cr = wb.create_sheet("CRUCE RCI")
 title(cr, "CRUCE DE CANTIDADES RCI POR NIVEL DE PISO",
       "Suma de BD_REVIT por ítem y nivel. 'Dif.' compara contra la cantidad global de NIVEL (debe ser 0).", 0)
-CNIV = NIVELES + ["="]  # "=" en SUMIFS = elementos sin nivel de piso
-short = [n.replace("Nivel ", "").replace("Cuarto de Bomba Sub", "C. Bomba").replace("=", "Sin nivel") for n in CNIV]
-H = ["Código", "Descripción", "Und."] + short + ["TOTAL", "NIVEL", "Dif."]
+H = ["Código", "Descripción", "Und."] + [corto(n) for n in CNIV] + ["TOTAL", "NIVEL", "Dif."]
 header(cr, 5, H, [8, 44, 6] + [8.5] * len(CNIV) + [11, 11, 7])
 for i, n in enumerate(CNIV):  # nombre completo como criterio (fila oculta)
     cr.cell(4, 4 + i, n).font = Font(name=ARIAL, size=7, color="FFFFFF")
@@ -279,8 +297,7 @@ for i, (cod, desc, und, nrow) in enumerate(cap7):
     cr.cell(r, 1, cod), cr.cell(r, 2, desc), cr.cell(r, 3, und)
     for j in range(len(CNIV)):
         col = 4 + j
-        cr.cell(r, col).value = f'=SUMIFS(BD_REVIT!$H:$H,BD_REVIT!$C:$C,$A{r},BD_REVIT!$F:$F,{L(col)}$4)'
-        cr.cell(r, col).number_format = NUM
+        cr.cell(r, col).value = f'=SUMIFS({BD("H")},{BD("C")},$A{r},{BD("F")},{L(col)}$4)'
     cr.cell(r, cT).value = f"=SUM(D{r}:{L(cT-1)}{r})"
     cr.cell(r, cN).value = f"=NIVEL!D{nrow}"
     cr.cell(r, cD).value = f"=ROUND({L(cT)}{r}-{L(cN)}{r},2)"
@@ -289,14 +306,13 @@ for i, (cod, desc, und, nrow) in enumerate(cap7):
         c.font, c.border = F_BASE, BORDER
         if col > 3:
             c.number_format = NUM
-    cr.cell(r, 2).alignment = Alignment(wrap_text=False, vertical="center")
     cr.cell(r, cT).font = F_BOLD
 CR_LAST = 5 + len(cap7)
 r = CR_LAST + 1
 cr.cell(r, 2, "Sin asignar (unidades mezcladas, ver BD_REVIT)").font = Font(name=ARIAL, size=9, italic=True, color="C00000")
 for j in range(len(CNIV)):
     col = 4 + j
-    cr.cell(r, col).value = f'=SUMIFS(BD_REVIT!$H:$H,BD_REVIT!$M:$M,"SIN ASIGNAR",BD_REVIT!$F:$F,{L(col)}$4)'
+    cr.cell(r, col).value = f'=SUMIFS({BD("H")},{BD("M")},"SIN ASIGNAR",{BD("F")},{L(col)}$4)'
     cr.cell(r, col).number_format = NUM
     cr.cell(r, col).font = Font(name=ARIAL, size=9, color="C00000")
 cr.conditional_formatting.add(f"D6:{L(cT-1)}{CR_LAST}",
@@ -307,119 +323,248 @@ cr.conditional_formatting.add(f"{L(cD)}6:{L(cD)}{CR_LAST}",
 cr.freeze_panes = "D6"
 cr.sheet_view.showGridLines = False
 
+# ---------------------------------------------------------------- CALC (auxiliar oculta)
+ca = wb.create_sheet("CALC")
+for col, lab in enumerate(["Código", "Descripción", "Und.", "Cant. filtro", "Clave orden", "Etiqueta"], 1):
+    ca.cell(1, col, lab).font = F_BOLD
+for i, (cod, desc, und, _) in enumerate(cap7, 2):
+    ca.cell(i, 1, cod), ca.cell(i, 2, desc), ca.cell(i, 3, und)
+    ca.cell(i, 4).value = f'=SUMIFS({BD("H")},{BD("C")},A{i},{BD("O")},1)'
+    ca.cell(i, 5).value = f"=IF(D{i}>0,D{i}+ROW()/10000000,0)"  # desempata valores iguales
+    ca.cell(i, 6).value = f'=A{i}&"  "&LEFT(B{i},48)&" ("&C{i}&")"'
+CA_LAST = len(cap7) + 1
+ca.sheet_state = "hidden"
+
 # ---------------------------------------------------------------- DASHBOARD
 db = wb.create_sheet("DASHBOARD", 0)
 db.sheet_view.showGridLines = False
-db["B2"] = "DASHBOARD DE CANTIDADES RCI – UNIQUE 76"
-db["B2"].font = Font(name=ARIAL, size=16, bold=True, color="1F3864")
-db["B3"] = "Todo se recalcula desde BD_REVIT. Cambie el código en la celda amarilla para ver otro ítem."
-db["B3"].font = F_SUB
-for col, w in zip("ABCDEFGHIJKLMN", [2, 26, 14, 14, 14, 3, 26, 14, 14, 14, 3, 14, 14, 14]):
+db.sheet_view.zoomScale = 90
+for col, w in zip("ABCDEFGHIJKLMNOPQRS", [2, 36, 13, 13, 13, 13, 13, 13, 13, 3] + [11] * 9):
     db.column_dimensions[col].width = w
-BDR = f"BD_REVIT!$A$6:$A${BD_LAST}"
-kpis = [("Elementos Revit", f"=COUNTA({BDR})", INT),
-        ("Asignados", f'=COUNTIF(BD_REVIT!$M$6:$M${BD_LAST},"ASIGNADO")', INT),
-        ("Sin asignar", f'=COUNTIF(BD_REVIT!$M$6:$M${BD_LAST},"SIN ASIGNAR")', INT),
-        ("% asignado", "=IFERROR(C6/B6,0)", "0.0%"),
-        ("Ítems cap. 7 con cantidad", f'=COUNTIF(\'CRUCE RCI\'!{L(cT)}6:{L(cT)}{CR_LAST},">0")', INT),
-        ("Niveles con elementos", f'=SUMPRODUCT(--(COUNTIF(BD_REVIT!$F$6:$F${BD_LAST},LISTAS!$D$2:$D${len(NIVELES)+1})>0))', INT)]
-# fila 5 etiquetas / fila 6 valores, en B..G (dos bloques de 3)
-pos = [("B", 5), ("C", 5), ("D", 5), ("E", 5), ("G", 5), ("H", 5)]
-for (lab, f, fmt), (col, row) in zip(kpis, pos):
-    a, b = db[f"{col}{row}"], db[f"{col}{row+1}"]
+F_SEC = Font(name=ARIAL, size=11, bold=True, color="1F3864")
+F_LBL = Font(name=ARIAL, size=8, bold=True, color="595959")
+F_KPI = Font(name=ARIAL, size=18, bold=True, color="1F3864")
+F_NOTE = Font(name=ARIAL, size=8, italic=True, color="808080")
+LINE = Border(bottom=Side(style="medium", color="AF2B1E"))
+
+db["B2"] = "DASHBOARD DE CANTIDADES RCI – UNIQUE 76"
+db["B2"].font = Font(name=ARIAL, size=18, bold=True, color="1F3864")
+db["B3"] = "Cap. 7 Redes contraincendios · Datos: BD_REVIT · Cambie las celdas amarillas y todo el tablero se recalcula."
+db["B3"].font = F_SUB
+for c in "BCDEFGHI":
+    db[f"{c}3"].border = LINE
+
+
+def seccion(cell, texto, nota=None):
+    db[cell] = texto
+    db[cell].font = F_SEC
+    if nota:
+        r = int(cell[1:])
+        db[f"B{r+1}"] = nota
+        db[f"B{r+1}"].font = F_NOTE
+
+
+def tabla_hdr(row, col0, labels):
+    for j, lab in enumerate(labels):
+        c = db.cell(row, col0 + j, lab)
+        c.font, c.fill, c.alignment, c.border = F_HDR, FILL_HDR, CENTER, BORDER
+
+
+def celda(row, col, val, fmt=None, bold=False):
+    c = db.cell(row, col, val)
+    c.font, c.border = (F_BOLD if bold else F_BASE), BORDER
+    if fmt:
+        c.number_format = fmt
+    return c
+
+
+# Filtros
+seccion("B5", "FILTROS")
+filtros = [(6, "Nivel de piso", "Todos", f"=LISTAS!$F$2:$F${len(NIVELES)+2}"),
+           (7, "Categoría Revit", "Todas", f"=LISTAS!$G$2:$G${len(CATS)+2}"),
+           (8, "Ítem para detalle por nivel", "7.08", f"=LISTAS!$A$2:$A${N_COD}")]
+for r, lab, val, src in filtros:
+    db[f"B{r}"] = lab
+    db[f"B{r}"].font = F_BOLD
+    c = db[f"C{r}"]
+    c.value, c.font, c.fill, c.border = val, F_INPUT, FILL_INPUT, BORDER
+    c.number_format = "@"
+    v = DataValidation(type="list", formula1=src, allow_blank=False)
+    db.add_data_validation(v)
+    v.add(f"C{r}")
+db["D8"] = '=IFERROR(INDEX(LISTAS!$B:$B,MATCH($C$8,LISTAS!$A:$A,0))&" ("&INDEX(LISTAS!$C:$C,MATCH($C$8,LISTAS!$A:$A,0))&")","Código no válido")'
+db["D8"].font = Font(name=ARIAL, size=10, italic=True, color="1F3864")
+db["D6"] = "Los filtros de nivel y categoría afectan los indicadores, el top 10 y la asignación por categoría."
+db["D6"].font = F_NOTE
+
+# Indicadores
+seccion("B10", "INDICADORES (con filtros)")
+kpis = [
+    ("B", "Elementos Revit", f"=SUM({BD('O')})", INT),
+    ("C", "Asignados", f'=COUNTIFS({BD("O")},1,{BD("M")},"ASIGNADO")', INT),
+    ("D", "Sin asignar", f'=COUNTIFS({BD("O")},1,{BD("M")},"SIN ASIGNAR")', INT),
+    ("E", "% asignado", "=IFERROR(C12/B12,0)", "0.0%"),
+    ("F", "Ítems con cantidad", f'=COUNTIF(CALC!$D$2:$D${CA_LAST},">0")', INT),
+    ("G", "Niveles con elementos", f'=SUMPRODUCT(--(COUNTIFS({BD("F")},LISTAS!$D$2:$D${len(NIVELES)+1},{BD("O")},1)>0))', INT),
+    ("H", "Cant. ítem detalle", f'=SUMIFS({BD("H")},{BD("C")},$C$8,{BD("O")},1)', NUM),
+    ("I", "Elementos ítem detalle", f'=COUNTIFS({BD("C")},$C$8,{BD("O")},1)', INT),
+]
+for col, lab, f, fmt in kpis:
+    a, b = db[f"{col}11"], db[f"{col}12"]
     a.value, b.value = lab, f
-    a.font = Font(name=ARIAL, size=8, bold=True, color="595959")
-    b.font = Font(name=ARIAL, size=18, bold=True, color="1F3864")
+    a.font, b.font = F_LBL, F_KPI
     b.number_format = fmt
     for c in (a, b):
         c.fill, c.alignment = FILL_KPI, CENTER
-# corregir referencias de % asignado (B6=elementos, C6=asignados)
-db["E6"] = "=IFERROR(C6/B6,0)"
+db.row_dimensions[12].height = 30
+db["D12"].font = Font(name=ARIAL, size=18, bold=True, color="C00000")
 
-# Selector de ítem
-db["B9"] = "ÍTEM SELECCIONADO"
-db["B9"].font = F_BOLD
-db["B10"] = "Código"
-db["C10"] = "7.08"
-db["C10"].font, db["C10"].fill, db["C10"].border = F_INPUT, FILL_INPUT, BORDER
-db["C10"].number_format = "@"
-dv2 = DataValidation(type="list", formula1=f"=LISTAS!$A$2:$A${N_COD}", allow_blank=False)
-db.add_data_validation(dv2)
-dv2.add("C10")
-db["B11"], db["C11"] = "Descripción", '=IFERROR(INDEX(LISTAS!$B:$B,MATCH($C$10,LISTAS!$A:$A,0)),"")'
-db["B12"], db["C12"] = "Unidad", '=IFERROR(INDEX(LISTAS!$C:$C,MATCH($C$10,LISTAS!$A:$A,0)),"")'
-db["B13"], db["C13"] = "Cantidad global", f'=SUMIFS(BD_REVIT!$H:$H,BD_REVIT!$C:$C,$C$10)'
-db["B14"], db["C14"] = "Elementos Revit", f'=COUNTIF(BD_REVIT!$C:$C,$C$10)'
-for r in range(10, 15):
-    db[f"B{r}"].font = F_BASE
-    db[f"C{r}"].font = F_BOLD if r != 10 else F_INPUT
-db["C13"].number_format = NUM
-db["C13"].font = Font(name=ARIAL, size=12, bold=True, color="1F3864")
-
-# Tabla por nivel del ítem seleccionado
-db["B16"], db["C16"], db["D16"] = "Nivel de piso", "Cantidad ítem", "Elementos (todos)"
-for c in ("B16", "C16", "D16"):
-    db[c].font, db[c].fill, db[c].alignment = F_HDR, FILL_HDR, CENTER
-for i, n in enumerate(NIVELES):
-    r = 17 + i
-    db[f"B{r}"] = n.replace("Nivel ", "")
-    db[f"C{r}"] = f'=SUMIFS(BD_REVIT!$H:$H,BD_REVIT!$C:$C,$C$10,BD_REVIT!$F:$F,LISTAS!$D${i+2})'
-    db[f"D{r}"] = f'=COUNTIF(BD_REVIT!$F:$F,LISTAS!$D${i+2})'
-    db[f"C{r}"].number_format, db[f"D{r}"].number_format = NUM, INT
-    for c in ("B", "C", "D"):
-        db[f"{c}{r}"].font, db[f"{c}{r}"].border = F_BASE, BORDER
-T_END = 16 + len(NIVELES)
-
-# Resumen por categoría
-db["G9"] = "RESUMEN POR CATEGORÍA"
-db["G9"].font = F_BOLD
-for c, lab in zip("GHIJ", ["Categoría", "Elementos", "Asignados", "Sin asignar"]):
-    db[f"{c}10"] = lab
-    db[f"{c}10"].font, db[f"{c}10"].fill, db[f"{c}10"].alignment = F_HDR, FILL_HDR, CENTER
-cats = sorted({d["cat"] for d in rows})
-for i, cat in enumerate(cats):
-    r = 11 + i
-    db[f"G{r}"] = cat
-    db[f"H{r}"] = f'=COUNTIF(BD_REVIT!$B$6:$B${BD_LAST},G{r})'
-    db[f"I{r}"] = f'=COUNTIFS(BD_REVIT!$B$6:$B${BD_LAST},G{r},BD_REVIT!$M$6:$M${BD_LAST},"ASIGNADO")'
-    db[f"J{r}"] = f'=H{r}-I{r}'
-    for c in "GHIJ":
-        db[f"{c}{r}"].font, db[f"{c}{r}"].border = F_BASE, BORDER
-    db[f"J{r}"].font = Font(name=ARIAL, size=10, bold=True, color="C00000")
-C_END = 10 + len(cats)
-r = C_END + 1
-db[f"G{r}"] = "TOTAL"
-for c in "HIJ":
-    db[f"{c}{r}"] = f"=SUM({c}11:{c}{C_END})"
-for c in "GHIJ":
-    db[f"{c}{r}"].font, db[f"{c}{r}"].border, db[f"{c}{r}"].fill = F_BOLD, BORDER, FILL_GRP
-
+# 1. Ítem por nivel
+R1 = 14
+seccion(f"B{R1}", "1. CANTIDAD DEL ÍTEM DE DETALLE POR NIVEL",
+        "Respeta el filtro de categoría. La fila del nivel filtrado se resalta.")
+tabla_hdr(R1 + 2, 2, ["Nivel de piso", "Cantidad", "Elementos", "Nivel (Revit)"])
+cat_ok = '$C$7="Todas"'
+for i, n in enumerate(CNIV):
+    r = R1 + 3 + i
+    crit = '"="' if n == "=" else f"$E{r}"
+    celda(r, 2, corto(n))
+    celda(r, 3, f'=IF({cat_ok},SUMIFS({BD("H")},{BD("C")},$C$8,{BD("F")},{crit}),'
+                f'SUMIFS({BD("H")},{BD("C")},$C$8,{BD("F")},{crit},{BD("B")},$C$7))', NUM)
+    celda(r, 4, f'=IF({cat_ok},COUNTIFS({BD("F")},{crit},{BD("B")},"<>"),COUNTIFS({BD("F")},{crit},{BD("B")},$C$7))', INT)
+    e = celda(r, 5, "" if n == "=" else n)
+    e.font = Font(name=ARIAL, size=8, color="808080")
+T1_END = R1 + 2 + len(CNIV)
+db.conditional_formatting.add(f"B{R1+3}:E{T1_END}", FormulaRule(
+    formula=[f'$E{R1+3}=$C$6'], fill=PatternFill("solid", fgColor="DBE8F9"), font=Font(bold=True, color="1C5CAB")))
+db.conditional_formatting.add(f"C{R1+3}:C{T1_END}", DataBarRule(start_type="num", start_value=0, end_type="max", color="5B9BD5"))
 ch = BarChart()
-ch.type = "bar"
-ch.title = "Cantidad del ítem seleccionado por nivel"
-ch.y_axis.title = None
-ch.add_data(Reference(db, min_col=3, min_row=16, max_row=T_END), titles_from_data=True)
-ch.set_categories(Reference(db, min_col=2, min_row=17, max_row=T_END))
+ch.type, ch.style = "bar", 10
+ch.title = "Ítem de detalle por nivel"
+ch.add_data(Reference(db, min_col=3, min_row=R1 + 2, max_row=T1_END), titles_from_data=True)
+ch.set_categories(Reference(db, min_col=2, min_row=R1 + 3, max_row=T1_END))
 ch.x_axis.scaling.orientation = "maxMin"
 ch.legend = None
-ch.height, ch.width = 11, 15
+ch.height, ch.width = 11.5, 17
 ch.series[0].graphicalProperties.solidFill = "2E5AAC"
-db.add_chart(ch, "G20")
+ch.series[0].graphicalProperties.line.noFill = True
+db.add_chart(ch, f"G{R1+2}")
 
-ch2 = BarChart()
-ch2.type = "col"
-ch2.grouping = "stacked"
-ch2.overlap = 100
-ch2.title = "Elementos por categoría"
-ch2.add_data(Reference(db, min_col=9, min_row=10, max_col=10, max_row=C_END), titles_from_data=True)
-ch2.set_categories(Reference(db, min_col=7, min_row=11, max_row=C_END))
-ch2.height, ch2.width = 7.5, 15
-ch2.series[0].graphicalProperties.solidFill = "2E5AAC"
-ch2.series[1].graphicalProperties.solidFill = "D9534F"
-db.add_chart(ch2, "G43")
+# 2. Top 10
+R2 = T1_END + 3
+seccion(f"B{R2}", "2. TOP 10 ÍTEMS POR CANTIDAD (con filtros)",
+        "Ordenado por cantidad en su propia unidad (Ml. y Un. se comparan solo como referencia).")
+tabla_hdr(R2 + 2, 2, ["Ítem", "Und.", "Cantidad", "Elementos"])
+for k in range(1, 11):
+    r = R2 + 2 + k
+    key = f"LARGE(CALC!$E$2:$E${CA_LAST},{k})"
+    fila = f"MATCH({key},CALC!$E$2:$E${CA_LAST},0)"
+    celda(r, 2, f'=IF({key}>0,INDEX(CALC!$F$2:$F${CA_LAST},{fila}),"")')
+    celda(r, 3, f'=IF({key}>0,INDEX(CALC!$C$2:$C${CA_LAST},{fila}),"")')
+    celda(r, 4, f'=IF({key}>0,INDEX(CALC!$D$2:$D${CA_LAST},{fila}),0)', NUM, bold=True)
+    celda(r, 5, f'=IF({key}>0,COUNTIFS({BD("C")},INDEX(CALC!$A$2:$A${CA_LAST},{fila}),{BD("O")},1),0)', INT)
+T2_END = R2 + 12
+db.conditional_formatting.add(f"D{R2+3}:D{T2_END}", DataBarRule(start_type="num", start_value=0, end_type="max", color="AF2B1E"))
+ch = BarChart()
+ch.type, ch.style = "bar", 10
+ch.title = "Top 10 ítems"
+ch.add_data(Reference(db, min_col=4, min_row=R2 + 2, max_row=T2_END), titles_from_data=True)
+ch.set_categories(Reference(db, min_col=2, min_row=R2 + 3, max_row=T2_END))
+ch.x_axis.scaling.orientation = "maxMin"
+ch.legend = None
+ch.height, ch.width = 8, 17
+ch.series[0].graphicalProperties.solidFill = "AF2B1E"
+ch.series[0].graphicalProperties.line.noFill = True
+db.add_chart(ch, f"G{R2+2}")
 
-orden = ["DASHBOARD", "NIVEL", "BD_REVIT", "CRUCE RCI", "LISTAS"]
+# 3. Asignación por categoría
+R3 = T2_END + 4
+seccion(f"B{R3}", "3. ASIGNACIÓN POR CATEGORÍA", "Respeta el filtro de nivel.")
+tabla_hdr(R3 + 2, 2, ["Categoría", "Elementos", "Asignados", "Sin asignar", "% asignado"])
+niv_ok = '$C$6="Todos"'
+for i, cat in enumerate(CATS):
+    r = R3 + 3 + i
+    celda(r, 2, cat)
+    celda(r, 3, f'=IF({niv_ok},COUNTIFS({BD("B")},$B{r}),COUNTIFS({BD("B")},$B{r},{BD("F")},$C$6))', INT)
+    celda(r, 4, f'=IF({niv_ok},COUNTIFS({BD("B")},$B{r},{BD("M")},"ASIGNADO"),COUNTIFS({BD("B")},$B{r},{BD("F")},$C$6,{BD("M")},"ASIGNADO"))', INT)
+    celda(r, 5, f"=C{r}-D{r}", INT).font = Font(name=ARIAL, size=10, bold=True, color="C00000")
+    celda(r, 6, f"=IFERROR(D{r}/C{r},0)", "0.0%")
+T3_END = R3 + 2 + len(CATS)
+r = T3_END + 1
+celda(r, 2, "TOTAL", bold=True)
+for col in (3, 4, 5):
+    celda(r, col, f"=SUM({L(col)}{R3+3}:{L(col)}{T3_END})", INT, bold=True)
+celda(r, 6, f"=IFERROR(D{r}/C{r},0)", "0.0%", bold=True)
+for col in range(2, 7):
+    db.cell(r, col).fill = FILL_GRP
+db.conditional_formatting.add(f"F{R3+3}:F{T3_END}", ColorScaleRule(
+    start_type="num", start_value=0, start_color="F8CBAD", end_type="num", end_value=1, end_color="C6EFCE"))
+ch = BarChart()
+ch.type, ch.grouping, ch.overlap, ch.style = "bar", "stacked", 100, 10
+ch.title = "Asignados vs sin asignar"
+ch.add_data(Reference(db, min_col=4, max_col=5, min_row=R3 + 2, max_row=T3_END), titles_from_data=True)
+ch.set_categories(Reference(db, min_col=2, min_row=R3 + 3, max_row=T3_END))
+ch.x_axis.scaling.orientation = "maxMin"
+ch.height, ch.width = 7, 17
+ch.series[0].graphicalProperties.solidFill = "2E7D32"
+ch.series[1].graphicalProperties.solidFill = "D9822B"
+db.add_chart(ch, f"G{R3+2}")
+
+# 4. Elementos por nivel y categoría
+R4 = T3_END + 5
+seccion(f"B{R4}", "4. ELEMENTOS POR NIVEL Y CATEGORÍA", "Conteo de elementos del modelo (sin filtros).")
+tabla_hdr(R4 + 2, 2, ["Nivel de piso"] + CATS + ["Total"])
+for i, n in enumerate(CNIV):
+    r = R4 + 3 + i
+    crit = '"="' if n == "=" else f'"{n}"'
+    celda(r, 2, corto(n))
+    for j, cat in enumerate(CATS):
+        celda(r, 3 + j, f'=COUNTIFS({BD("F")},{crit},{BD("B")},{L(3+j)}${R4+2})', INT)
+    celda(r, 9, f"=SUM(C{r}:H{r})", INT, bold=True)
+T4_END = R4 + 2 + len(CNIV)
+r = T4_END + 1
+celda(r, 2, "TOTAL", bold=True)
+for col in range(3, 10):
+    celda(r, col, f"=SUM({L(col)}{R4+3}:{L(col)}{T4_END})", INT, bold=True)
+    db.cell(r, col).fill = FILL_GRP
+db.cell(r, 2).fill = FILL_GRP
+db.conditional_formatting.add(f"C{R4+3}:H{T4_END}", ColorScaleRule(
+    start_type="num", start_value=0, start_color="FFFFFF", end_type="max", end_color="5B9BD5"))
+ch = BarChart()
+ch.type, ch.grouping, ch.overlap, ch.style = "bar", "stacked", 100, 10
+ch.title = "Elementos por nivel"
+ch.add_data(Reference(db, min_col=3, max_col=8, min_row=R4 + 2, max_row=T4_END), titles_from_data=True)
+ch.set_categories(Reference(db, min_col=2, min_row=R4 + 3, max_row=T4_END))
+ch.x_axis.scaling.orientation = "maxMin"
+ch.height, ch.width = 12, 17
+for s, color in zip(ch.series, SERIES):
+    s.graphicalProperties.solidFill = color
+    s.graphicalProperties.line.noFill = True
+db.add_chart(ch, f"K{R4+2}")
+db.freeze_panes = "A5"
+
+# Impresión: cada hoja a una página de ancho
+for ws, orient in ((db, "landscape"), (nv, "portrait"), (bd, "landscape"), (cr, "landscape")):
+    ws.page_setup.orientation = orient
+    ws.page_setup.paperSize = ws.PAPERSIZE_LETTER
+    ws.sheet_properties.pageSetUpPr.fitToPage = True
+    ws.page_setup.fitToWidth, ws.page_setup.fitToHeight = 1, 0
+    ws.print_options.horizontalCentered = True
+nv.print_title_rows = "6:6"
+bd.print_title_rows = "5:5"
+cr.print_title_rows = "5:5"
+
+# Ejes visibles en Excel reciente y todas las etiquetas de nivel
+for chart in db._charts:
+    chart.x_axis.delete = chart.y_axis.delete = False
+    chart.x_axis.tickLblSkip = 1
+from openpyxl.workbook.properties import CalcProperties
+wb.calculation = CalcProperties(fullCalcOnLoad=True)
+
+orden = ["DASHBOARD", "NIVEL", "BD_REVIT", "CRUCE RCI", "LISTAS", "CALC"]
 wb._sheets.sort(key=lambda w: orden.index(w.title) if w.title in orden else 99)
 wb.active = 0
+for ws in wb:
+    ws.sheet_view.tabSelected = ws.title == "DASHBOARD"
 wb.save(OUT)
 print("ok", len(rows), "filas revit,", len(cap7), "ítems cap7")
