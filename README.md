@@ -23,10 +23,11 @@ El export debe tener hojas `RCI - <Categoría>` con encabezados en la fila 6 (fo
 ## Revisión 2026-10-08: asignación completa
 Los 139 elementos que venían sin código ya están asignados; la regla de cada uno está en `ASIGNACIONES` (`scripts/build_cuadro.py`).
 BD_REVIT → columna "Origen asignación": `Cruce Revit` (venía del cruce) o `Revisión 2026-10-08`.
-Ítems nuevos en el cap. 7 (se numeraron 7.103–7.116 para no cambiar los códigos existentes):
+Ítems nuevos en el cap. 7 (se numeraron 7.103–7.117 para no cambiar los códigos existentes):
 7.103 Tubería ø1¼" · 7.104 Tubería ø2" · 7.105 Soporte pera 2" · 7.106–7.109 Antisísmicos ø3"/ø4" ·
 7.110–7.111 Sello intumescente 1½"/4" · 7.112 Tee mec. 2½x1½" · 7.113 Tee mec. 6x2½" ·
-7.114 Válvula compuerta ø1" · 7.115 Cheque ranurado ø4" · 7.116 Base en concreto equipo de bombeo.
+7.114 Válvula compuerta ø1" · 7.115 Cheque ranurado ø4" · 7.116 Base en concreto equipo de bombeo ·
+7.117 Tee A.G. SCH-40 ø3".
 
 Regenerar todo:
 ```bash

@@ -41,6 +41,7 @@ NUEVOS = [
     ("7.114", 'Válvula de Compuerta De ø1"', "Un.", "7.69"),
     ("7.115", 'Válvula de Cheque Ranurado De ø4"', "Un.", "7.76"),
     ("7.116", 'Base en concreto para equipo de bombeo', "Un.", "7.101"),
+    ("7.117", 'Tee A.G. SCH-40 D=3"', "Un.", "7.58"),
 ]
 
 # Asignación de elementos Revit que venían sin código.
@@ -54,6 +55,7 @@ ASIGNACIONES = [
     ("Uniones", "IDC_PASE", None, None, "7.19"),
     ("Uniones", "SELLO CORTAFUEGOS", '1 1/2"ø-1 1/2"ø', None, "7.110"),
     ("Uniones", "SELLO CORTAFUEGOS", '4"ø-4"ø', None, "7.111"),
+    ("Uniones", "Tee 2: A.G. - TEE", '3"ø-3"ø-3"ø', None, "7.117"),
     ("Uniones", "Tee 2: A.G. - TEE", None, None, "7.58"),
     ("Uniones", 'TEE MECÁNICA (A.C.) - 3"', None, None, "7.50"),
     ("Uniones", "TEE MECANICA", '1 1/2"ø-1"ø', None, "7.48"),
