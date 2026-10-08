@@ -1,0 +1,481 @@
+<title>Cantidades RCI Unique 76</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+/* Layout: barra de proyecto + fila de segmentadores + KPIs + lienzo de 2 columnas (gráficos) + tablas con pestañas, al estilo de un informe BI */
+:root{
+  --bg:#f3f4f6; --panel:#ffffff; --panel-2:#f8f9fb; --line:#dde1e7; --line-2:#c9ced6;
+  --fg:#16202c; --fg-2:#4a5565; --fg-3:#778294;
+  --accent:#af2b1e;            /* RAL 3000, rojo de tubería contraincendio */
+  --accent-soft:#f7e3e0;
+  --sel:#1c5cab; --sel-soft:#dbe8f9;
+  --warn:#a15c00; --warn-soft:#fdf0d5; --ok:#2e7d32; --ok-soft:#e3f2e4;
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100; --s5:#e87ba4; --s6:#4a3aa7;
+  --heat:28,92,171;
+  --f-ui:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-disp:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  --f-num:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#12161c; --panel:#1a2029; --panel-2:#20272f; --line:#2c3440; --line-2:#3a4452;
+  --fg:#e9edf2; --fg-2:#b3bcc8; --fg-3:#8792a1;
+  --accent:#e0594a; --accent-soft:#3a1f1c; --sel:#6da7ec; --sel-soft:#1d2d44;
+  --warn:#f0b23e; --warn-soft:#3a2e14; --ok:#6cc070; --ok-soft:#1c3020;
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#9085e9;
+  --heat:109,167,236; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#12161c; --panel:#1a2029; --panel-2:#20272f; --line:#2c3440; --line-2:#3a4452;
+  --fg:#e9edf2; --fg-2:#b3bcc8; --fg-3:#8792a1;
+  --accent:#e0594a; --accent-soft:#3a1f1c; --sel:#6da7ec; --sel-soft:#1d2d44;
+  --warn:#f0b23e; --warn-soft:#3a2e14; --ok:#6cc070; --ok-soft:#1c3020;
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#9085e9;
+  --heat:109,167,236; color-scheme:dark }
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--fg);font:14px/1.45 var(--f-ui);margin:0}
+.wrap{max-width:1440px;margin:0 auto;padding-inline:16px;padding-block:0 40px}
+button,select,input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--sel);outline-offset:2px}
+.num{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+
+/* barra superior */
+.top{display:flex;flex-wrap:wrap;align-items:center;gap:12px 20px;padding-block:18px 14px;border-bottom:3px solid var(--accent)}
+.brand{display:flex;flex-direction:column;min-width:0;flex:1 1 300px}
+.brand small{font:600 11px/1 var(--f-ui);letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+.brand h1{font:700 28px/1.05 var(--f-disp);margin:4px 0 0;letter-spacing:.01em;text-wrap:balance}
+.brand span{color:var(--fg-3);font-size:12.5px;margin-top:3px}
+.actions{display:flex;flex-wrap:wrap;gap:8px}
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line-2);background:var(--panel);border-radius:6px;padding:7px 12px;cursor:pointer;font-weight:500}
+.btn:hover{border-color:var(--fg-3)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.btn svg{width:15px;height:15px;flex:none}
+
+/* segmentadores */
+.slicers{display:flex;flex-wrap:wrap;align-items:flex-end;gap:12px 16px;padding-block:14px}
+.sl{display:flex;flex-direction:column;gap:4px;min-width:0}
+.sl label,.lbl{font:600 10.5px/1 var(--f-ui);letter-spacing:.1em;text-transform:uppercase;color:var(--fg-3)}
+.sl select,.sl input{border:1px solid var(--line-2);background:var(--panel);border-radius:6px;padding:6px 9px;min-width:0}
+.sl input{width:220px;max-width:100%}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line-2);background:var(--panel);border-radius:999px;padding:4px 11px 4px 8px;cursor:pointer;font-size:13px}
+.chip i{width:9px;height:9px;border-radius:2px;display:inline-block}
+.chip[aria-pressed="true"]{background:var(--sel-soft);border-color:var(--sel);color:var(--fg)}
+.chip[aria-pressed="false"]{color:var(--fg-3)}
+.chip[aria-pressed="false"] i{opacity:.35}
+.sel-pill{display:inline-flex;align-items:center;gap:8px;background:var(--sel-soft);border:1px solid var(--sel);border-radius:6px;padding:5px 6px 5px 10px;font-size:13px;max-width:100%}
+.sel-pill b{font-family:var(--f-num);font-weight:600}
+.sel-pill span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.sel-pill button{border:0;background:none;cursor:pointer;color:var(--fg-2);padding:0 4px;font-size:16px;line-height:1}
+
+/* KPIs */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.kpi{background:var(--panel);padding:12px 16px 13px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.kpi .v{font:600 26px/1.1 var(--f-num);font-variant-numeric:tabular-nums}
+.kpi .s{font-size:12px;color:var(--fg-3)}
+.kpi.warn .v{color:var(--warn)}
+.meter{height:5px;background:var(--line);border-radius:3px;margin-top:6px;overflow:hidden;display:flex}
+.meter b{background:var(--ok);display:block}
+
+/* lienzo */
+.canvas{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:14px;margin-top:14px}
+@media (max-width:900px){.canvas{grid-template-columns:minmax(0,1fr)}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px 16px;min-width:0}
+.card h2{font:600 17px/1.2 var(--f-disp);margin:0;letter-spacing:.02em}
+.card .sub{font-size:12px;color:var(--fg-3);margin:2px 0 12px}
+.legend{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--fg-2);margin-bottom:10px}
+.legend span{display:inline-flex;align-items:center;gap:5px}
+.legend i{width:10px;height:10px;border-radius:2px;display:inline-block}
+
+/* barras horizontales */
+.hbars{display:grid;grid-template-columns:max-content minmax(0,1fr) max-content;gap:3px 10px;align-items:center}
+.hbars .k{font-size:12.5px;color:var(--fg-2);text-align:right;white-space:nowrap;cursor:pointer}
+.hbars .k.on{color:var(--sel);font-weight:600}
+.hbars .t{display:flex;height:16px;gap:2px;cursor:pointer;border-radius:0 4px 4px 0}
+.hbars .t:hover{filter:brightness(1.07)}
+.hbars .t b{display:block;height:100%;min-width:0}
+.hbars .t b:last-child{border-radius:0 4px 4px 0}
+.hbars .t.dim{opacity:.28}
+.hbars .val{font:12px var(--f-num);color:var(--fg-2);text-align:right;min-width:52px}
+.axis{display:flex;justify-content:space-between;font:11px var(--f-num);color:var(--fg-3);border-top:1px solid var(--line);margin-top:6px;padding-top:4px}
+
+/* tablas */
+.tabs{display:flex;gap:2px;margin-top:20px;border-bottom:1px solid var(--line-2);overflow-x:auto}
+.tab{border:0;background:none;padding:9px 14px;cursor:pointer;font:600 15px var(--f-disp);letter-spacing:.03em;color:var(--fg-3);border-bottom:3px solid transparent;margin-bottom:-1px;white-space:nowrap}
+.tab[aria-selected="true"]{color:var(--fg);border-color:var(--accent)}
+.tab .n{font:500 11px var(--f-num);background:var(--panel-2);border:1px solid var(--line);border-radius:999px;padding:1px 6px;margin-left:6px;color:var(--fg-2)}
+.tab .n.w{background:var(--warn-soft);border-color:transparent;color:var(--warn)}
+.panel{background:var(--panel);border:1px solid var(--line);border-top:0;border-radius:0 0 8px 8px}
+.ptools{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--line);font-size:12.5px;color:var(--fg-2)}
+.scroll{overflow:auto;max-height:640px}
+table{border-collapse:separate;border-spacing:0;width:100%;font-size:13px}
+th{position:sticky;top:0;background:var(--panel-2);text-align:left;font:600 11px/1.2 var(--f-ui);letter-spacing:.06em;text-transform:uppercase;color:var(--fg-3);padding:8px 10px;border-bottom:1px solid var(--line-2);white-space:nowrap;z-index:1}
+th.r,td.r{text-align:right}
+td{padding:6px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
+tr.grp td{background:var(--panel-2);font:600 12px var(--f-ui);color:var(--fg-2);letter-spacing:.03em;padding-top:10px}
+tr.it{cursor:pointer}
+tr.it:hover td{background:var(--sel-soft)}
+tr.it.on td{background:var(--sel-soft);box-shadow:inset 0 -1px 0 var(--sel)}
+tr.it.zero td{color:var(--fg-3)}
+td.code{font-family:var(--f-num);font-size:12px;color:var(--fg-2);white-space:nowrap}
+td.qty{font-family:var(--f-num);font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap}
+.src{font-size:11px;border-radius:4px;padding:1px 6px;white-space:nowrap}
+.src.rv{background:var(--ok-soft);color:var(--ok)}
+.src.mn{background:var(--panel-2);color:var(--fg-3);border:1px solid var(--line)}
+.state{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:600;white-space:nowrap}
+.state.ok{color:var(--ok)} .state.no{color:var(--warn)}
+.state svg{width:12px;height:12px}
+td select.code{font:12px var(--f-num);border:1px solid var(--line-2);background:var(--panel);border-radius:5px;padding:3px 4px;max-width:250px}
+td select.code.unset{border-color:var(--warn);background:var(--warn-soft)}
+td select.code.changed{border-color:var(--sel);box-shadow:0 0 0 1px var(--sel)}
+.fam{max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--fg-2)}
+.sug{font-size:12px;color:var(--fg-3)}
+.sug button{border:1px dashed var(--line-2);background:none;border-radius:4px;padding:1px 6px;cursor:pointer;font:11.5px var(--f-num);color:var(--sel)}
+.heat td.h{font:11.5px var(--f-num);text-align:right;padding:5px 6px;white-space:nowrap}
+.heat th.v{writing-mode:vertical-rl;transform:rotate(180deg);height:110px;text-align:left;padding:6px 4px}
+.empty{padding:40px 16px;text-align:center;color:var(--fg-3)}
+#tip{position:fixed;pointer-events:none;background:var(--fg);color:var(--bg);padding:7px 10px;border-radius:6px;font-size:12px;line-height:1.4;z-index:50;max-width:280px;box-shadow:0 4px 16px rgba(0,0,0,.18)}
+#tip b{font-family:var(--f-num)}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:9px 16px;border-radius:6px;font-size:13px;z-index:60;max-width:calc(100% - 32px)}
+.foot{margin-top:18px;font-size:12px;color:var(--fg-3)}
+@media (prefers-reduced-motion:no-preference){.hbars .t b{transition:width .25s ease}}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <small>Unique 76 · Cap. 7 Redes contraincendios</small>
+      <h1>Cantidades RCI desde Revit</h1>
+      <span id="dsinfo"></span>
+    </div>
+    <div class="actions">
+      <input type="file" id="file" accept=".xlsx,.xls" hidden>
+      <button class="btn" id="bImport"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 10V2m0 0L5 5m3-3 3 3M2.5 10.5v3h11v-3"/></svg>Cargar export Revit</button>
+      <button class="btn" id="bReset" disabled>Deshacer asignaciones</button>
+      <button class="btn primary" id="bExport"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 2v8m0 0 3-3m-3 3L5 7M2.5 10.5v3h11v-3"/></svg>Exportar Excel</button>
+    </div>
+  </header>
+
+  <section class="slicers" aria-label="Filtros">
+    <div class="sl"><span class="lbl">Categoría Revit</span><div class="chips" id="fCat"></div></div>
+    <div class="sl"><label for="fNivel">Nivel de piso</label><select id="fNivel"></select></div>
+    <div class="sl"><label for="fEstado">Estado</label>
+      <select id="fEstado"><option value="">Todos</option><option value="A">Asignados</option><option value="S">Sin asignar</option></select></div>
+    <div class="sl"><label for="fQ">Buscar</label><input id="fQ" type="search" placeholder="Familia, tamaño, código…"></div>
+    <div class="sl" id="selWrap" hidden><span class="lbl">Ítem seleccionado</span><div class="sel-pill"><b id="selCode"></b><span id="selDesc"></span><button id="selClear" aria-label="Quitar ítem seleccionado">×</button></div></div>
+  </section>
+
+  <section class="kpis" id="kpis"></section>
+
+  <section class="canvas">
+    <div class="card">
+      <h2 id="c1t">Elementos por nivel de piso</h2>
+      <p class="sub" id="c1s"></p>
+      <div class="legend" id="c1l"></div>
+      <div class="hbars" id="c1"></div>
+      <div class="axis" id="c1a"></div>
+    </div>
+    <div class="card">
+      <h2>Asignación por categoría</h2>
+      <p class="sub">Elementos del modelo con y sin código del cuadro NIVEL. Clic en una barra para filtrar.</p>
+      <div class="legend"><span><i style="background:var(--ok)"></i>Asignado</span><span><i style="background:var(--warn)"></i>Sin asignar</span></div>
+      <div class="hbars" id="c2"></div>
+      <div class="axis" id="c2a"></div>
+      <h2 style="margin-top:22px">Ítems con mayor cantidad</h2>
+      <p class="sub">Top 8 por unidad dentro del filtro actual. Clic para seleccionar.</p>
+      <div class="hbars" id="c3"></div>
+    </div>
+  </section>
+
+  <nav class="tabs" role="tablist">
+    <button class="tab" role="tab" data-t="cuadro" aria-selected="true">Cuadro NIVEL cap. 7<span class="n" id="n1"></span></button>
+    <button class="tab" role="tab" data-t="elem" aria-selected="false">Elementos Revit<span class="n" id="n2"></span></button>
+    <button class="tab" role="tab" data-t="matriz" aria-selected="false">Matriz ítem × nivel</button>
+  </nav>
+  <div class="panel">
+    <div class="ptools" id="ptools"></div>
+    <div class="scroll" id="tbl"></div>
+  </div>
+  <p class="foot">Las cantidades globales se recalculan con los filtros activos. Las asignaciones de código se guardan en este navegador; usa “Exportar Excel” para llevarlas al cuadro oficial.</p>
+</div>
+<div id="tip" hidden></div>
+
+<script id="seed" type="application/json">__DATA__</script>
+<script>
+(()=>{
+const SEED=JSON.parse(document.getElementById('seed').textContent);
+const NIVELES=["Nivel Cuarto de Bomba Sub","Nivel Sótano 4","Nivel Sótano 3","Nivel Sótano 2","Nivel Sótano 1","Nivel Semisótano",...Array.from({length:15},(_,i)=>"Nivel "+(i+1))];
+const short=n=>n.replace("Nivel ","").replace("Cuarto de Bomba Sub","C. Bomba");
+const CATS=["Accesorios","Equipos","Rociadores","Soportes","Tuberías","Uniones"];
+const CCOL={Accesorios:"var(--s1)",Equipos:"var(--s2)",Rociadores:"var(--s3)",Soportes:"var(--s4)","Tuberías":"var(--s5)",Uniones:"var(--s6)"};
+const LS="rci-u76-v1";
+const store={get(){try{return JSON.parse(localStorage.getItem(LS))||{}}catch(e){return{}}},set(v){try{localStorage.setItem(LS,JSON.stringify(v))}catch(e){}}};
+
+const catalogo=SEED.catalogo.map(([code,desc,und,grp])=>({code,desc,und,grp}));
+const byCode=Object.fromEntries(catalogo.map(c=>[c.code,c]));
+let dataset={name:"Exportación Revit incluida (461 elementos)",rows:[]};
+function load(rows,name){
+  const seen={};
+  dataset={name,rows:rows.map((r,i)=>{
+    const [cat,code,nivel,cant,fam,desc,tam,com,sug]=r;
+    const sig=[cat,fam,desc,tam,nivel,com].join("|");
+    return {i,cat,orig:code||"",nivel:nivel||"(sin nivel)",cant:+cant||0,fam,desc,tam,com,sug:sug||"",sig};
+  })};
+}
+load(SEED.rows,"Exportación Revit incluida");
+let saved=store.get();
+let st={cats:new Set(CATS),nivel:"",estado:"",q:"",item:"",tab:"cuadro",ovr:saved.ovr||{}};
+if(saved.tab)st.tab=saved.tab;
+const code=r=>(st.ovr[r.sig]!==undefined?st.ovr[r.sig]:r.orig);
+const fmt=(v,d=2)=>v.toLocaleString("es-CO",{minimumFractionDigits:d,maximumFractionDigits:d});
+const fq=(v,und)=>fmt(v,/ml|m3/i.test(und||"")?2:(Number.isInteger(Math.round(v*100)/100)?0:2));
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const $=id=>document.getElementById(id);
+
+function filtered(ignore={}){
+  const q=st.q.trim().toLowerCase();
+  return dataset.rows.filter(r=>{
+    if(!st.cats.has(r.cat))return false;
+    if(!ignore.nivel&&st.nivel&&r.nivel!==st.nivel)return false;
+    const c=code(r);
+    if(st.estado==="A"&&!c)return false;
+    if(st.estado==="S"&&c)return false;
+    if(!ignore.item&&st.item&&c!==st.item)return false;
+    if(q&&!(r.fam+" "+r.desc+" "+r.tam+" "+r.com+" "+c+" "+(byCode[c]?.desc||"")).toLowerCase().includes(q))return false;
+    return true;
+  });
+}
+function totals(rows){const t={};for(const r of rows){const c=code(r);if(c)t[c]=(t[c]||0)+r.cant}return t}
+
+/* ---------- tooltip ---------- */
+const tip=$("tip");
+document.addEventListener("pointermove",e=>{
+  const el=e.target.closest("[data-tip]");
+  if(!el){tip.hidden=true;return}
+  tip.innerHTML=el.dataset.tip;tip.hidden=false;
+  const w=tip.offsetWidth,h=tip.offsetHeight;
+  let x=e.clientX+14,y=e.clientY+14;
+  if(x+w>innerWidth-8)x=e.clientX-w-14; if(y+h>innerHeight-8)y=e.clientY-h-14;
+  tip.style.left=x+"px";tip.style.top=y+"px";
+});
+
+/* ---------- render ---------- */
+function niceMax(v){if(v<=0)return 1;const p=10**Math.floor(Math.log10(v));const m=v/p;return (m<=1?1:m<=2?2:m<=5?5:10)*p}
+function axis(el,max,unit){el.innerHTML=[0,.25,.5,.75,1].map(f=>`<span>${fmt(max*f,max<10?1:0)}</span>`).join("")+(unit?`<span>${esc(unit)}</span>`:"")}
+
+function renderKpis(){
+  const rows=filtered();
+  const asg=rows.filter(r=>code(r)).length, sin=rows.length-asg;
+  const items=Object.keys(totals(rows)).length;
+  const niveles=new Set(rows.map(r=>r.nivel)).size;
+  const pct=rows.length?asg/rows.length:0;
+  const changes=Object.keys(st.ovr).length;
+  $("kpis").innerHTML=`
+   <div class="kpi"><span class="lbl">Elementos Revit</span><span class="v">${fmt(rows.length,0)}</span><span class="s">de ${fmt(dataset.rows.length,0)} en el modelo</span></div>
+   <div class="kpi"><span class="lbl">Asignados al cuadro</span><span class="v">${fmt(pct*100,1)}%</span><div class="meter"><b style="width:${pct*100}%"></b></div><span class="s">${fmt(asg,0)} elementos</span></div>
+   <div class="kpi warn"><span class="lbl">Sin asignar</span><span class="v">${fmt(sin,0)}</span><span class="s">${fmt(rows.filter(r=>!code(r)).reduce((a,r)=>a+r.cant,0),0)} unidades sin ítem</span></div>
+   <div class="kpi"><span class="lbl">Ítems con cantidad</span><span class="v">${items}</span><span class="s">de ${catalogo.length} ítems del cap. 7</span></div>
+   <div class="kpi"><span class="lbl">Niveles de piso</span><span class="v">${niveles}</span><span class="s">${changes?changes+" asignaciones editadas":"sin cambios locales"}</span></div>`;
+  $("bReset").disabled=!changes;
+}
+
+function renderC1(){
+  const it=st.item&&byCode[st.item];
+  const rows=filtered({nivel:1});
+  const lv=[...NIVELES,...new Set(rows.map(r=>r.nivel).filter(n=>!NIVELES.includes(n)))];
+  let data,max;
+  if(it){
+    $("c1t").textContent="Cantidad por nivel de piso";
+    $("c1s").textContent=`${it.code} · ${it.desc} (${it.und})`;
+    $("c1l").innerHTML="";
+    data=lv.map(n=>({n,v:rows.filter(r=>r.nivel===n).reduce((a,r)=>a+r.cant,0)}));
+    max=niceMax(Math.max(...data.map(d=>d.v)));
+    $("c1").innerHTML=data.map(d=>`<span class="k ${st.nivel===d.n?"on":""}" data-n="${esc(d.n)}">${esc(short(d.n))}</span>
+      <div class="t ${st.nivel&&st.nivel!==d.n?"dim":""}" data-n="${esc(d.n)}" data-tip="${esc(d.n)}<br><b>${fq(d.v,it.und)}</b> ${esc(it.und)}"><b style="width:${d.v/max*100}%;background:var(--sel)"></b></div>
+      <span class="val">${d.v?fq(d.v,it.und):"–"}</span>`).join("");
+    axis($("c1a"),max,it.und);
+  }else{
+    $("c1t").textContent="Elementos por nivel de piso";
+    $("c1s").textContent="Conteo de elementos Revit, apilado por categoría. Clic en un nivel para filtrar.";
+    const cats=CATS.filter(c=>st.cats.has(c));
+    $("c1l").innerHTML=cats.map(c=>`<span><i style="background:${CCOL[c]}"></i>${c}</span>`).join("");
+    data=lv.map(n=>{const rs=rows.filter(r=>r.nivel===n);return{n,tot:rs.length,parts:cats.map(c=>({c,v:rs.filter(r=>r.cat===c).length}))}});
+    max=niceMax(Math.max(...data.map(d=>d.tot)));
+    $("c1").innerHTML=data.map(d=>`<span class="k ${st.nivel===d.n?"on":""}" data-n="${esc(d.n)}">${esc(short(d.n))}</span>
+      <div class="t ${st.nivel&&st.nivel!==d.n?"dim":""}" data-n="${esc(d.n)}" data-tip="${esc(d.n)}<br>${d.parts.filter(p=>p.v).map(p=>`${p.c}: <b>${p.v}</b>`).join("<br>")||"Sin elementos"}">${d.parts.filter(p=>p.v).map(p=>`<b style="width:${p.v/max*100}%;background:${CCOL[p.c]}"></b>`).join("")}</div>
+      <span class="val">${d.tot||"–"}</span>`).join("");
+    axis($("c1a"),max,"elem.");
+  }
+}
+
+function renderC2(){
+  const rows=filtered();
+  const data=CATS.filter(c=>st.cats.has(c)).map(c=>{const rs=rows.filter(r=>r.cat===c);const a=rs.filter(r=>code(r)).length;return{c,a,s:rs.length-a}});
+  const max=niceMax(Math.max(1,...data.map(d=>d.a+d.s)));
+  $("c2").innerHTML=data.map(d=>`<span class="k" data-c="${d.c}">${d.c}</span>
+    <div class="t" data-c="${d.c}" data-tip="${d.c}<br>Asignados: <b>${d.a}</b><br>Sin asignar: <b>${d.s}</b>">${d.a?`<b style="width:${d.a/max*100}%;background:var(--ok)"></b>`:""}${d.s?`<b style="width:${d.s/max*100}%;background:var(--warn)"></b>`:""}</div>
+    <span class="val">${d.s?`<span style="color:var(--warn)">${d.s}</span> / `:""}${d.a+d.s}</span>`).join("");
+  axis($("c2a"),max,"elem.");
+  const t=totals(filtered({item:1}));
+  const top=Object.entries(t).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  const tmax=Math.max(1,...top.map(x=>x[1]));
+  $("c3").innerHTML=top.length?top.map(([c,v])=>{const it=byCode[c]||{desc:"Código no existe",und:""};return`<span class="k ${st.item===c?"on":""}" data-i="${c}" title="${esc(it.desc)}">${c}</span>
+    <div class="t" data-i="${c}" data-tip="<b>${c}</b> ${esc(it.desc)}<br><b>${fq(v,it.und)}</b> ${esc(it.und)}"><b style="width:${v/tmax*100}%;background:var(--sel)"></b></div>
+    <span class="val">${fq(v,it.und)} <span style="color:var(--fg-3)">${esc(it.und)}</span></span>`}).join(""):`<span></span><span class="sub">Sin ítems asignados en el filtro.</span><span></span>`;
+}
+
+const ICO_OK='<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M2.5 6.3 5 8.6l4.5-5"/></svg>';
+const ICO_NO='<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 2.5v4.2M6 9v.2"/></svg>';
+const codeOptions=sel=>`<option value="">— Sin asignar —</option>`+catalogo.map(c=>`<option value="${c.code}"${c.code===sel?" selected":""}>${c.code} · ${esc(c.desc.slice(0,60))}</option>`).join("");
+
+function renderTable(){
+  document.querySelectorAll(".tab").forEach(t=>t.setAttribute("aria-selected",t.dataset.t===st.tab));
+  const rowsAll=filtered({item:1});
+  const t=totals(rowsAll);
+  $("n1").textContent=Object.keys(t).length+"/"+catalogo.length;
+  const sinN=dataset.rows.filter(r=>!code(r)).length;
+  $("n2").textContent=sinN; $("n2").className="n"+(sinN?" w":"");
+  if(st.tab==="cuadro"){
+    $("ptools").innerHTML=`<span>Cantidad global por ítem con los filtros activos. Clic en un ítem para ver su detalle por nivel.</span><label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="onlyQ" ${st.onlyQ?"checked":""}> Solo ítems con cantidad</label>`;
+    let g="",h="";
+    for(const c of catalogo){
+      const v=t[c.code]||0;
+      if(st.onlyQ&&!v)continue;
+      if(c.grp!==g){g=c.grp;h+=`<tr class="grp"><td colspan="5">${esc(g)}</td></tr>`}
+      const n=dataset.rows.filter(r=>code(r)===c.code).length;
+      h+=`<tr class="it ${v?"":"zero"} ${st.item===c.code?"on":""}" data-i="${c.code}"><td class="code">${c.code}</td><td>${esc(c.desc)}</td><td>${esc(c.und)}</td><td class="qty r">${v?fq(v,c.und):"–"}</td><td>${n?`<span class="src rv">Revit · ${n}</span>`:`<span class="src mn">Manual</span>`}</td></tr>`;
+    }
+    $("tbl").innerHTML=`<table><thead><tr><th>Ítem</th><th>Descripción</th><th>Und.</th><th class="r">Cant. global</th><th>Fuente</th></tr></thead><tbody>${h}</tbody></table>`;
+  }else if(st.tab==="elem"){
+    const rows=filtered();
+    $("ptools").innerHTML=`<span>${fmt(rows.length,0)} elementos. Cambia el código para asignar un elemento a un ítem del cuadro; las cantidades se actualizan al instante.</span><span>Elementos idénticos (misma familia, tamaño y nivel) comparten asignación.</span>`;
+    $("tbl").innerHTML=rows.length?`<table><thead><tr><th>Estado</th><th>Código NIVEL</th><th>Categoría</th><th>Nivel</th><th class="r">Cant.</th><th>Familia / tipo Revit</th><th>Tamaño</th><th>Comentarios</th><th>Sugerencia</th></tr></thead><tbody>${rows.map(r=>{const c=code(r);const ch=st.ovr[r.sig]!==undefined;const sc=(r.sug.match(/^7\.\d+/)||[])[0];return`<tr>
+      <td>${c?`<span class="state ok">${ICO_OK}Asignado</span>`:`<span class="state no">${ICO_NO}Sin asignar</span>`}</td>
+      <td><select class="code ${c?"":"unset"} ${ch?"changed":""}" data-sig="${esc(r.sig)}" aria-label="Código NIVEL">${codeOptions(c)}</select></td>
+      <td>${r.cat}</td><td style="white-space:nowrap">${esc(short(r.nivel))}</td><td class="qty r">${fmt(r.cant,Number.isInteger(r.cant)?0:2)}</td>
+      <td><div class="fam" title="${esc(r.fam)}">${esc(r.fam)}</div></td><td style="white-space:nowrap">${esc(r.tam)}</td><td class="sug">${esc(r.com)}</td>
+      <td class="sug">${r.sug?(sc&&!c?`<button data-apply="${esc(r.sig)}" data-code="${sc}">Usar ${sc}</button> `:"")+esc(r.sug.replace(/^7\.\d+\s*/,"")):""}</td></tr>`}).join("")}</tbody></table>`:`<div class="empty">Ningún elemento cumple los filtros.</div>`;
+  }else{
+    $("ptools").innerHTML=`<span>Cantidad por ítem y nivel de piso. Intensidad del color proporcional al máximo de cada fila.</span>`;
+    const lv=NIVELES;
+    let h="";
+    for(const c of catalogo){
+      if(!t[c.code])continue;
+      const vals=lv.map(n=>rowsAll.filter(r=>r.nivel===n&&code(r)===c.code).reduce((a,r)=>a+r.cant,0));
+      const mx=Math.max(...vals);
+      h+=`<tr class="it ${st.item===c.code?"on":""}" data-i="${c.code}"><td class="code">${c.code}</td><td style="min-width:220px">${esc(c.desc)}</td><td>${esc(c.und)}</td>${vals.map((v,j)=>`<td class="h" style="background:${v?`rgba(var(--heat),${(.12+.6*v/mx).toFixed(2)})`:"transparent"}" data-tip="${c.code} · ${esc(short(lv[j]))}<br><b>${fq(v,c.und)}</b> ${esc(c.und)}">${v?fq(v,c.und):""}</td>`).join("")}<td class="qty r">${fq(t[c.code],c.und)}</td></tr>`;
+    }
+    $("tbl").innerHTML=h?`<table class="heat"><thead><tr><th>Ítem</th><th>Descripción</th><th>Und.</th>${lv.map(n=>`<th class="v">${esc(short(n))}</th>`).join("")}<th class="r">Total</th></tr></thead><tbody>${h}</tbody></table>`:`<div class="empty">Sin ítems asignados en el filtro.</div>`;
+  }
+}
+
+function renderSlicers(){
+  $("fCat").innerHTML=CATS.map(c=>`<button class="chip" aria-pressed="${st.cats.has(c)}" data-c="${c}"><i style="background:${CCOL[c]}"></i>${c}</button>`).join("");
+  const lv=[...NIVELES,...new Set(dataset.rows.map(r=>r.nivel).filter(n=>!NIVELES.includes(n)))];
+  $("fNivel").innerHTML=`<option value="">Todos los niveles</option>`+lv.map(n=>`<option ${n===st.nivel?"selected":""}>${esc(n)}</option>`).join("");
+  $("fEstado").value=st.estado;
+  const it=byCode[st.item];
+  $("selWrap").hidden=!it;
+  if(it){$("selCode").textContent=it.code;$("selDesc").textContent=it.desc}
+  $("dsinfo").textContent=dataset.name+" · "+new Set(dataset.rows.map(r=>r.nivel)).size+" niveles";
+}
+function render(){renderSlicers();renderKpis();renderC1();renderC2();renderTable();store.set({ovr:st.ovr,tab:st.tab})}
+
+/* ---------- interacción ---------- */
+document.addEventListener("click",e=>{
+  const t=e.target;
+  const chip=t.closest(".chip");
+  if(chip){const c=chip.dataset.c;
+    if(st.cats.size===CATS.length){st.cats=new Set([c])}else if(st.cats.has(c)){st.cats.delete(c);if(!st.cats.size)st.cats=new Set(CATS)}else st.cats.add(c);
+    return render()}
+  const n=t.closest("[data-n]"); if(n){st.nivel=st.nivel===n.dataset.n?"":n.dataset.n;return render()}
+  const c=t.closest(".hbars [data-c]"); if(c){st.cats=(st.cats.size===1&&st.cats.has(c.dataset.c))?new Set(CATS):new Set([c.dataset.c]);return render()}
+  const ap=t.closest("[data-apply]"); if(ap){st.ovr[ap.dataset.apply]=ap.dataset.code;toast("Asignado "+ap.dataset.code);return render()}
+  const i=t.closest("[data-i]"); if(i&&!t.closest("select")){st.item=st.item===i.dataset.i?"":i.dataset.i;return render()}
+  const tab=t.closest(".tab"); if(tab){st.tab=tab.dataset.t;return render()}
+});
+document.addEventListener("change",e=>{
+  const t=e.target;
+  if(t.matches("select.code")){const r=dataset.rows.find(x=>x.sig===t.dataset.sig);
+    if(t.value===r.orig)delete st.ovr[r.sig];else st.ovr[r.sig]=t.value;
+    toast(t.value?"Asignado a "+t.value:"Elemento sin asignar");render()}
+  if(t.id==="onlyQ"){st.onlyQ=t.checked;renderTable()}
+  if(t.id==="fNivel"){st.nivel=t.value;render()}
+  if(t.id==="fEstado"){st.estado=t.value;render()}
+});
+let qT;$("fQ").addEventListener("input",e=>{clearTimeout(qT);qT=setTimeout(()=>{st.q=e.target.value;render()},150)});
+$("selClear").onclick=()=>{st.item="";render()};
+$("bReset").onclick=()=>{
+  const b=$("bReset");
+  if(b.dataset.confirm){st.ovr={};delete b.dataset.confirm;b.textContent="Deshacer asignaciones";toast("Asignaciones restablecidas al export de Revit");return render()}
+  b.dataset.confirm=1;b.textContent="¿Confirmar? Clic de nuevo";setTimeout(()=>{if(b.dataset.confirm){delete b.dataset.confirm;b.textContent="Deshacer asignaciones"}},4000);
+};
+let toastT;function toast(m){document.querySelectorAll(".toast").forEach(x=>x.remove());const d=document.createElement("div");d.className="toast";d.textContent=m;document.body.appendChild(d);clearTimeout(toastT);toastT=setTimeout(()=>d.remove(),2600)}
+
+/* ---------- importar ---------- */
+$("bImport").onclick=()=>$("file").click();
+$("file").onchange=async e=>{
+  const f=e.target.files[0]; if(!f)return; e.target.value="";
+  if(!window.XLSX){toast("No se pudo cargar el lector de Excel. Revisa la conexión y recarga.");return}
+  try{
+    const wb=XLSX.read(await f.arrayBuffer());
+    const rows=[];
+    const find=(arr,re)=>arr.findIndex(h=>re.test(String(h||"")));
+    for(const name of wb.SheetNames){
+      const a=XLSX.utils.sheet_to_json(wb.Sheets[name],{header:1,defval:null});
+      const hi=a.findIndex(r=>r&&r.some(v=>/^C[óo]digo (de )?NIVEL$/i.test(String(v||"").trim())));
+      if(hi<0)continue;
+      const H=a[hi].map(h=>String(h||"").trim());
+      const ix={cod:find(H,/^C[óo]digo (de )?NIVEL$/i),cat:find(H,/^Categor/i),niv:find(H,/^Nivel de piso$/i),cant:find(H,/^Cantidad( de origen)?$/i),
+        fam:find(H,/^Familia|^Tipo de origen/i),desc:find(H,/^Descripci[óo]n (de origen|Revit)/i),com:find(H,/^Comentarios$/i),sug:find(H,/sugerido/i),
+        tam:[find(H,/^Tamaño$/i),find(H,/^Tamaño nominal$/i),find(H,/^Diámetro nominal$/i),find(H,/^Tamaño \/ di/i)].filter(x=>x>=0)};
+      if(ix.niv<0||ix.cant<0)continue;
+      const cat=ix.cat>=0?null:name.replace(/^RCI\s*-\s*/i,"").trim();
+      for(const r of a.slice(hi+1)){
+        if(!r||r.every(v=>v==null||v===""))continue;
+        const cant=parseFloat(r[ix.cant]); if(isNaN(cant))continue;
+        const g=k=>k>=0&&r[k]!=null?String(r[k]).trim():"";
+        rows.push([cat||g(ix.cat),g(ix.cod),g(ix.niv),cant,g(ix.fam),g(ix.desc),ix.tam.map(g).find(Boolean)||"",g(ix.com),g(ix.sug)]);
+      }
+    }
+    if(!rows.length){toast("No encontré hojas con columnas “Código de NIVEL”, “Nivel de piso” y “Cantidad”.");return}
+    load(rows,f.name+" ("+rows.length+" elementos)");
+    const sigs=new Set(dataset.rows.map(r=>r.sig));
+    for(const k of Object.keys(st.ovr))if(!sigs.has(k))delete st.ovr[k];
+    st.item="";st.nivel="";render();
+    toast("Cargado "+f.name+": "+rows.length+" elementos. Se conservaron las asignaciones que coinciden.");
+  }catch(err){console.error(err);toast("No se pudo leer el archivo: "+err.message)}
+};
+
+/* ---------- exportar ---------- */
+$("bExport").onclick=async()=>{
+  if(!window.XLSX){toast("No se pudo cargar el generador de Excel. Recarga la página.");return}
+  const t=totals(dataset.rows);
+  const nivel=[["ÍTEM","DESCRIPCIÓN","UND.","CANT. GLOBAL","FUENTE","ELEMENTOS REVIT"]];
+  let g="";
+  for(const c of catalogo){if(c.grp!==g){g=c.grp;nivel.push(["-",g])}
+    const n=dataset.rows.filter(r=>code(r)===c.code).length;
+    nivel.push([c.code,c.desc,c.und,t[c.code]?Math.round(t[c.code]*100)/100:null,n?"Revit":"Manual",n||null])}
+  const bd=[["Categoría","Código NIVEL","Ítem NIVEL","Und.","Nivel de piso","Cantidad","Familia / tipo Revit","Descripción Revit","Tamaño / diámetro","Comentarios","Estado","Editado en dashboard","Código sugerido"]];
+  for(const r of dataset.rows){const c=code(r);bd.push([r.cat,c,byCode[c]?.desc||"",byCode[c]?.und||"",r.nivel,r.cant,r.fam,r.desc,r.tam,r.com,c?"ASIGNADO":"SIN ASIGNAR",st.ovr[r.sig]!==undefined?"Sí":"",r.sug])}
+  const mx=[["Código","Descripción","Und.",...NIVELES.map(short),"TOTAL"]];
+  for(const c of catalogo){if(!t[c.code])continue;
+    mx.push([c.code,c.desc,c.und,...NIVELES.map(n=>{const v=dataset.rows.filter(r=>r.nivel===n&&code(r)===c.code).reduce((a,r)=>a+r.cant,0);return v?Math.round(v*100)/100:null}),Math.round(t[c.code]*100)/100])}
+  const wb=XLSX.utils.book_new();
+  const add=(a,n,w)=>{const s=XLSX.utils.aoa_to_sheet(a);s["!cols"]=w.map(x=>({wch:x}));XLSX.utils.book_append_sheet(wb,s,n)};
+  add(nivel,"NIVEL cap7",[8,70,7,14,9,10]);add(bd,"BD_REVIT",[12,11,40,6,24,10,48,30,18,30,12,10,30]);add(mx,"CRUCE RCI",[8,44,6,...NIVELES.map(()=>9),11]);
+  const buf=XLSX.write(wb,{type:"array",bookType:"xlsx"});
+  const name="Cantidades_RCI_Unique76_"+new Date().toISOString().slice(0,10)+".xlsx";
+  try{
+    const dl=await window.claude?.use?.("downloads");
+    if(!dl){toast("Este visor no permite descargar archivos.");return}
+    await dl.save({filename:name,data:new Blob([buf])});
+    toast("Excel guardado: "+name);
+  }catch(err){toast(err?.code==="declined"?"Descarga cancelada.":"No se pudo guardar el archivo ("+(err?.code||err?.message||"error")+").")}
+};
+
+render();
+})();
+</script>
