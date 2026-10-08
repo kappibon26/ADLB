@@ -22,31 +22,59 @@ SRC, OUT = sys.argv[1], sys.argv[2]
 NIVELES = ["Nivel Cuarto de Bomba Sub", "Nivel Sótano 4", "Nivel Sótano 3", "Nivel Sótano 2",
            "Nivel Sótano 1", "Nivel Semisótano"] + [f"Nivel {i}" for i in range(1, 16)]
 
-# Sugerencias para elementos sin asignar (no se aplican: solo orientan la revisión)
-SUGERENCIAS = [
-    # (hoja, texto en familia, texto en tamaño/diámetro, sugerencia)
-    ("Accesorios", "VKV EasyPac", "", "7.36 (verificar)"),
-    ("Accesorios", "VALVULA DE COMPUERTA: 1 Inch", "2\"", "7.69 (verificar)"),
-    ("Accesorios", "VALVULA DE COMPUERTA1", "", "Crear ítem: Válvula compuerta ø1\""),
-    ("Accesorios", "Swing-Check", "", "Crear ítem: Cheque ranurado ø4\""),
-    ("Accesorios", "PASE RUANA", "", "7.19 (verificar)"),
-    ("Uniones", "IDC_PASE", "", "7.19 (verificar)"),
-    ("Uniones", "SELLO CORTAFUEGOS", "", "Crear ítem: Sello intumescente (diámetro modelado)"),
-    ("Uniones", "Tee 2: A.G. - TEE", "", "7.58 (verificar)"),
-    ("Uniones", "TEE MECÁNICA (A.C.) - 3\"", "", "7.50"),
-    ("Uniones", "TEE MECÁNICA (A.G.) - 1 1/2\"", "1 1/2\"ø-1\"ø", "7.48"),
-    ("Uniones", "TEE MECÁNICA (A.C.) - 2\"", "2\"ø-1\"ø", "7.53 (verificar)"),
-    ("Uniones", "TEE MECÁNICA (A.C.) - 2\"", "2\"ø-2\"ø", "7.49"),
-    ("Uniones", "TEE MECÁNICA (A.C.) - 6\"", "6\"ø-2\"ø", "7.52"),
-    ("Uniones", "TEE MECÁNICA (A.C.) - 6\"", "6\"ø-2 1/2\"ø", "Crear ítem: Tee mecánica 6x2½\""),
-    ("Uniones", "TEE MECÁNICA (A.G.) - 1 1/2\"", "2 1/2\"ø-1 1/2\"ø", "Crear ítem: Tee mecánica 2½x1½\""),
-    ("Tuberías", "R.C.I. - ACERO", "2\"ø", "Crear ítem: Tubería A.C. Sch10 ø2\""),
-    ("Tuberías", "R.C.I. - ACERO", "1 1/4\"ø", "Crear ítem: Tubería A.C. Sch10 ø1¼\""),
-    ("Tuberías", "TUBASYS", "", "Crear ítem: Tubería Tubasys RAL3000 ø1½\""),
-    ("Soportes", "SOPORTE TUBERIA", "2\"", "Crear ítem: Soporte pera 2\""),
-    ("Soportes", "ANTISISMICOS", "3\"", "Crear ítem: Soporte antisísmico ø3\""),
-    ("Soportes", "ANTISISMICOS", "4\"", "Crear ítem: Soporte antisísmico ø4\""),
-    ("Soportes", "ANTISISMICOS", "0\"", "7.29 (verificar: red vertical/cabezal)"),
+REVISION = "Revisión 2026-10-08"
+
+# Ítems nuevos del cap. 7 (no existían en el cuadro y sí están modelados).
+# (código, descripción, und., se inserta después de)
+NUEVOS = [
+    ("7.103", 'Tubería A.C. Sche 10 De ø1 1/4"', "Ml.", "7.07"),
+    ("7.104", 'Tubería A.C. Sche 10 De ø2"', "Ml.", "7.08"),
+    ("7.105", 'Soporte pera 2"', "Un.", "7.14"),
+    ("7.106", 'Soporte Antisísmico Longitudinal ø3"', "Un.", "7.21"),
+    ("7.107", 'Soporte Antisísmico Transversal ø3"', "Un.", "7.106"),
+    ("7.108", 'Soporte Antisísmico Longitudinal ø4"', "Un.", "7.107"),
+    ("7.109", 'Soporte Antisísmico Transversal ø4"', "Un.", "7.108"),
+    ("7.110", 'Sello intumescente 1-1/2"', "Un.", "7.27"),
+    ("7.111", 'Sello intumescente 4"', "Un.", "7.110"),
+    ("7.112", 'Tee mecánica D=2-1/2x1-1/2"', "Un.", "7.54"),
+    ("7.113", 'Tee mecánica D=6x2-1/2"', "Un.", "7.112"),
+    ("7.114", 'Válvula de Compuerta De ø1"', "Un.", "7.69"),
+    ("7.115", 'Válvula de Cheque Ranurado De ø4"', "Un.", "7.76"),
+    ("7.116", 'Base en concreto para equipo de bombeo', "Un.", "7.101"),
+]
+
+# Asignación de elementos Revit que venían sin código.
+# (hoja, texto en familia, tamaño exacto o None, texto en descripción o None, código)
+ASIGNACIONES = [
+    ("Accesorios", "VKV EasyPac", None, None, "7.36"),
+    ("Accesorios", "VALVULA DE COMPUERTA: 1 Inch", '2"ø-2"ø', None, "7.69"),
+    ("Accesorios", "VALVULA DE COMPUERTA1", None, None, "7.114"),
+    ("Accesorios", "Swing-Check", None, None, "7.115"),
+    ("Accesorios", "PASE RUANA", None, None, "7.19"),
+    ("Uniones", "IDC_PASE", None, None, "7.19"),
+    ("Uniones", "SELLO CORTAFUEGOS", '1 1/2"ø-1 1/2"ø', None, "7.110"),
+    ("Uniones", "SELLO CORTAFUEGOS", '4"ø-4"ø', None, "7.111"),
+    ("Uniones", "Tee 2: A.G. - TEE", None, None, "7.58"),
+    ("Uniones", 'TEE MECÁNICA (A.C.) - 3"', None, None, "7.50"),
+    ("Uniones", "TEE MECANICA", '1 1/2"ø-1"ø', None, "7.48"),
+    ("Uniones", "TEE MECANICA", '2 1/2"ø-1 1/2"ø', None, "7.112"),
+    ("Uniones", "TEE MECANICA", '2"ø-1"ø', None, "7.53"),
+    ("Uniones", "TEE MECANICA", '2"ø-2"ø', None, "7.49"),
+    ("Uniones", "TEE MECANICA", '6"ø-2"ø', None, "7.52"),
+    ("Uniones", "TEE MECANICA", '6"ø-2 1/2"ø', None, "7.113"),
+    ("Tuberías", "R.C.I. - ACERO", '2"ø', None, "7.104"),
+    ("Tuberías", "R.C.I. - ACERO", '1 1/4"ø', None, "7.103"),
+    ("Tuberías", "TUBASYS", None, None, "7.08"),
+    ("Soportes", "SOPORTE TUBERIA", '2"', None, "7.105"),
+    ("Soportes", "ANTISISMICOS", '0"', "LONGITUDINAL", "7.22"),
+    ("Soportes", "ANTISISMICOS", '0"', "TRANSVERSAL", "7.23"),
+    ("Soportes", "ANTISISMICOS", '3"', "LONGITUDINAL", "7.106"),
+    ("Soportes", "ANTISISMICOS", '3"', "TRANSVERSAL", "7.107"),
+    ("Soportes", "ANTISISMICOS", '4"', "LONGITUDINAL", "7.108"),
+    ("Soportes", "ANTISISMICOS", '4"', "TRANSVERSAL", "7.109"),
+    ("Equipos", "LS model", None, None, "7.100"),
+    ("Equipos", "USE TYPE CATALOG", None, None, "7.101"),
+    ("Equipos", "BASE DE CONCRETO", None, None, "7.116"),
 ]
 
 ARIAL = "Arial"
@@ -100,24 +128,34 @@ for name in [s for s in wb.sheetnames if s.startswith("RCI - ")]:
         d = dict(zip(hdr, r))
         tam = d.get("Tamaño") or d.get("Tamaño nominal") or d.get("Diámetro nominal") or ""
         fam = d.get("Familia o tipo (origen)") or d.get("Tipo de origen") or ""
-        sug = ""
-        if not d.get("Código de NIVEL"):
-            for h, f, t, s in SUGERENCIAS:
-                if h == cat and f in fam and t in f'{tam} {d.get("Diámetro nominal") or ""}':
-                    sug = s
+        cod, origen = d.get("Código de NIVEL"), "Cruce Revit"
+        if not cod:
+            origen = "SIN REGLA"
+            for h, f, t, de, c in ASIGNACIONES:
+                if h == cat and f in fam and (t is None or t == tam) and \
+                        (de is None or de in (d.get("Descripción de origen") or "")):
+                    cod, origen = c, REVISION
                     break
-        rows.append(dict(cat=cat, cod=d.get("Código de NIVEL"), nivel=d.get("Nivel de piso"),
+        rows.append(dict(cat=cat, cod=cod, nivel=d.get("Nivel de piso"),
                          cant=d.get("Cantidad de origen"), fam=fam,
                          desc=d.get("Descripción de origen") or "", tam=tam,
-                         com=d.get("Comentarios") or "", sug=sug))
+                         com=d.get("Comentarios") or "", sug=origen))
 for s in [s for s in wb.sheetnames if s.startswith("RCI - ") or s == "Cruce RCI"]:
     del wb[s]
 
 # ---------------------------------------------------------------- NIVEL
 nv = wb["NIVEL"]
-LAST = 535
 for mr in list(nv.merged_cells.ranges):
     nv.unmerge_cells(str(mr))
+for cod, desc, und, after in NUEVOS:
+    fila = next(r for r in range(7, nv.max_row + 1) if str(nv.cell(r, 1).value) == after)
+    nv.insert_rows(fila + 1)
+    nv.cell(fila + 1, 1, cod), nv.cell(fila + 1, 2, desc), nv.cell(fila + 1, 3, und)
+for r in range(7, nv.max_row + 1):  # 7.29 venía sin unidad
+    if str(nv.cell(r, 1).value) == "7.29" and not nv.cell(r, 3).value:
+        nv.cell(r, 3, "Un.")
+LAST = nv.max_row
+PIE = next(r for r in range(7, LAST + 1) if str(nv.cell(r, 2).value or "").startswith("COSTO DIRECTO")) - 1
 cap7 = []  # (codigo, descripcion, und, fila)
 in_cap7 = False
 for r in range(1, LAST + 1):
@@ -132,7 +170,7 @@ for r in range(1, LAST + 1):
     is_cap = a is not None and str(a).strip().isdigit()
     if is_cap:
         in_cap7 = str(a).strip() == "7"
-    if r > 526:
+    if r > PIE - 1:
         if b:
             for col in range(1, 6):
                 nv.cell(r, col).font = F_BOLD
@@ -191,7 +229,7 @@ title(bd, "BASE DE DATOS REVIT – RCI",
       "Edite solo la columna amarilla 'Código NIVEL' para asignar elementos. Ítem, Und. y Estado se calculan.", 14)
 H = ["ID", "Categoría", "Código NIVEL", "Ítem NIVEL", "Und.", "Nivel de piso", "Orden nivel",
      "Cantidad", "Familia / tipo Revit", "Descripción Revit", "Tamaño / diámetro", "Comentarios",
-     "Estado", "Código sugerido"]
+     "Estado", "Origen asignación"]
 header(bd, 5, H, [6, 12, 11, 42, 7, 24, 7, 10, 48, 30, 18, 30, 12, 30])
 for i, d in enumerate(rows):
     r = 6 + i
@@ -226,17 +264,18 @@ bd.sheet_view.showGridLines = False
 cr = wb.create_sheet("CRUCE RCI")
 title(cr, "CRUCE DE CANTIDADES RCI POR NIVEL DE PISO",
       "Suma de BD_REVIT por ítem y nivel. 'Dif.' compara contra la cantidad global de NIVEL (debe ser 0).", 0)
-short = [n.replace("Nivel ", "").replace("Cuarto de Bomba Sub", "C. Bomba") for n in NIVELES]
+CNIV = NIVELES + ["="]  # "=" en SUMIFS = elementos sin nivel de piso
+short = [n.replace("Nivel ", "").replace("Cuarto de Bomba Sub", "C. Bomba").replace("=", "Sin nivel") for n in CNIV]
 H = ["Código", "Descripción", "Und."] + short + ["TOTAL", "NIVEL", "Dif."]
-header(cr, 5, H, [8, 44, 6] + [8.5] * len(NIVELES) + [11, 11, 7])
-for i, n in enumerate(NIVELES):  # nombre completo como criterio (fila oculta)
+header(cr, 5, H, [8, 44, 6] + [8.5] * len(CNIV) + [11, 11, 7])
+for i, n in enumerate(CNIV):  # nombre completo como criterio (fila oculta)
     cr.cell(4, 4 + i, n).font = Font(name=ARIAL, size=7, color="FFFFFF")
 cr.row_dimensions[4].hidden = True
-cT, cN, cD = 4 + len(NIVELES), 5 + len(NIVELES), 6 + len(NIVELES)
+cT, cN, cD = 4 + len(CNIV), 5 + len(CNIV), 6 + len(CNIV)
 for i, (cod, desc, und, nrow) in enumerate(cap7):
     r = 6 + i
     cr.cell(r, 1, cod), cr.cell(r, 2, desc), cr.cell(r, 3, und)
-    for j in range(len(NIVELES)):
+    for j in range(len(CNIV)):
         col = 4 + j
         cr.cell(r, col).value = f'=SUMIFS(BD_REVIT!$H:$H,BD_REVIT!$C:$C,$A{r},BD_REVIT!$F:$F,{L(col)}$4)'
         cr.cell(r, col).number_format = NUM
@@ -253,7 +292,7 @@ for i, (cod, desc, und, nrow) in enumerate(cap7):
 CR_LAST = 5 + len(cap7)
 r = CR_LAST + 1
 cr.cell(r, 2, "Sin asignar (unidades mezcladas, ver BD_REVIT)").font = Font(name=ARIAL, size=9, italic=True, color="C00000")
-for j in range(len(NIVELES)):
+for j in range(len(CNIV)):
     col = 4 + j
     cr.cell(r, col).value = f'=SUMIFS(BD_REVIT!$H:$H,BD_REVIT!$M:$M,"SIN ASIGNAR",BD_REVIT!$F:$F,{L(col)}$4)'
     cr.cell(r, col).number_format = NUM

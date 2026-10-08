@@ -351,15 +351,15 @@ function renderTable(){
   }else if(st.tab==="elem"){
     const rows=filtered();
     $("ptools").innerHTML=`<span>${fmt(rows.length,0)} elementos. Cambia el código para asignar un elemento a un ítem del cuadro; las cantidades se actualizan al instante.</span><span>Elementos idénticos (misma familia, tamaño y nivel) comparten asignación.</span>`;
-    $("tbl").innerHTML=rows.length?`<table><thead><tr><th>Estado</th><th>Código NIVEL</th><th>Categoría</th><th>Nivel</th><th class="r">Cant.</th><th>Familia / tipo Revit</th><th>Tamaño</th><th>Comentarios</th><th>Sugerencia</th></tr></thead><tbody>${rows.map(r=>{const c=code(r);const ch=st.ovr[r.sig]!==undefined;const sc=(r.sug.match(/^7\.\d+/)||[])[0];return`<tr>
+    $("tbl").innerHTML=rows.length?`<table><thead><tr><th>Estado</th><th>Código NIVEL</th><th>Categoría</th><th>Nivel</th><th class="r">Cant.</th><th>Familia / tipo Revit</th><th>Tamaño</th><th>Comentarios</th><th>Origen</th></tr></thead><tbody>${rows.map(r=>{const c=code(r);const ch=st.ovr[r.sig]!==undefined;return`<tr>
       <td>${c?`<span class="state ok">${ICO_OK}Asignado</span>`:`<span class="state no">${ICO_NO}Sin asignar</span>`}</td>
       <td><select class="code ${c?"":"unset"} ${ch?"changed":""}" data-sig="${esc(r.sig)}" aria-label="Código NIVEL">${codeOptions(c)}</select></td>
       <td>${r.cat}</td><td style="white-space:nowrap">${esc(short(r.nivel))}</td><td class="qty r">${fmt(r.cant,Number.isInteger(r.cant)?0:2)}</td>
       <td><div class="fam" title="${esc(r.fam)}">${esc(r.fam)}</div></td><td style="white-space:nowrap">${esc(r.tam)}</td><td class="sug">${esc(r.com)}</td>
-      <td class="sug">${r.sug?(sc&&!c?`<button data-apply="${esc(r.sig)}" data-code="${sc}">Usar ${sc}</button> `:"")+esc(r.sug.replace(/^7\.\d+\s*/,"")):""}</td></tr>`}).join("")}</tbody></table>`:`<div class="empty">Ningún elemento cumple los filtros.</div>`;
+      <td class="sug" style="white-space:nowrap">${st.ovr[r.sig]!==undefined?"Editado aquí":esc(r.sug)}</td></tr>`}).join("")}</tbody></table>`:`<div class="empty">Ningún elemento cumple los filtros.</div>`;
   }else{
     $("ptools").innerHTML=`<span>Cantidad por ítem y nivel de piso. Intensidad del color proporcional al máximo de cada fila.</span>`;
-    const lv=NIVELES;
+    const lv=[...NIVELES,...new Set(rowsAll.map(r=>r.nivel).filter(n=>!NIVELES.includes(n)))];
     let h="";
     for(const c of catalogo){
       if(!t[c.code])continue;
@@ -458,7 +458,7 @@ $("bExport").onclick=async()=>{
   for(const c of catalogo){if(c.grp!==g){g=c.grp;nivel.push(["-",g])}
     const n=dataset.rows.filter(r=>code(r)===c.code).length;
     nivel.push([c.code,c.desc,c.und,t[c.code]?Math.round(t[c.code]*100)/100:null,n?"Revit":"Manual",n||null])}
-  const bd=[["Categoría","Código NIVEL","Ítem NIVEL","Und.","Nivel de piso","Cantidad","Familia / tipo Revit","Descripción Revit","Tamaño / diámetro","Comentarios","Estado","Editado en dashboard","Código sugerido"]];
+  const bd=[["Categoría","Código NIVEL","Ítem NIVEL","Und.","Nivel de piso","Cantidad","Familia / tipo Revit","Descripción Revit","Tamaño / diámetro","Comentarios","Estado","Editado en dashboard","Origen asignación"]];
   for(const r of dataset.rows){const c=code(r);bd.push([r.cat,c,byCode[c]?.desc||"",byCode[c]?.und||"",r.nivel,r.cant,r.fam,r.desc,r.tam,r.com,c?"ASIGNADO":"SIN ASIGNAR",st.ovr[r.sig]!==undefined?"Sí":"",r.sug])}
   const mx=[["Código","Descripción","Und.",...NIVELES.map(short),"TOTAL"]];
   for(const c of catalogo){if(!t[c.code])continue;
